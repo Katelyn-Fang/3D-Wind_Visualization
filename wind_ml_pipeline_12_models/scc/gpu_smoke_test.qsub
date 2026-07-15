@@ -1,0 +1,18 @@
+#!/bin/bash -l
+#$ -N wind_gpu_check
+#$ -j y
+#$ -l h_rt=00:20:00
+#$ -pe omp 4
+#$ -l gpus=1
+#$ -l gpu_c=7.0
+
+set -euo pipefail
+
+# EDIT THIS LINE.
+PROJECT_DIR="/projectnb/YOUR_PROJECT/YOUR_BU_ID/wind-ml-pipeline"
+
+module load miniconda
+module load academic-ml/spring-2026
+conda activate spring-2026-pyt
+cd "$PROJECT_DIR"
+python src/check_gpu.py

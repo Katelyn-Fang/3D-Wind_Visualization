@@ -1,0 +1,15 @@
+.venv/
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+
+# Data and generated outputs
+data/*.csv
+results/**
+*.joblib
+*.o[0-9]*
+*.e[0-9]*
+
+# Keep documentation placeholders
+!data/README.md
+!results/README.md

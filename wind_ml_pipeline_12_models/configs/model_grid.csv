@@ -1,0 +1,13 @@
+model,resource,direction_model,direction_target,yaw_transform,direction_min_speed,direction_loss_weight,direction_norm_weight,attitude_angle_unit,n_estimators,min_samples_leaf,max_depth,max_features,sequence_length,hidden_size,num_layers,attention_heads,epochs,batch_size,learning_rate,patience
+extra_trees,cpu,,absolute,,1.0,2.0,0.05,radians,500,3,20,0.8,30,128,2,4,60,256,0.001,8
+random_forest,cpu,,absolute,,1.0,2.0,0.05,radians,500,3,20,0.8,30,128,2,4,60,256,0.001,8
+decision_tree,cpu,,absolute,,1.0,2.0,0.05,radians,1,10,20,0.8,30,128,2,4,60,256,0.001,8
+ridge,cpu,,absolute,,1.0,2.0,0.05,radians,1,10,20,0.8,30,128,2,4,60,256,0.001,8
+dummy,cpu,,absolute,,1.0,2.0,0.05,radians,1,10,20,0.8,30,128,2,4,60,256,0.001,8
+xgboost,cpu,,absolute,,1.0,2.0,0.05,radians,800,5,8,0.8,30,128,2,4,60,256,0.03,8
+lightgbm,cpu,,absolute,,1.0,2.0,0.05,radians,800,10,12,0.8,30,128,2,4,60,256,0.03,8
+catboost,cpu,,absolute,,1.0,2.0,0.05,radians,1000,5,8,0.8,30,128,2,4,60,256,0.03,8
+mlp,gpu,,absolute,,1.0,2.0,0.05,radians,1,10,20,0.8,30,128,3,4,60,256,0.001,8
+lstm,gpu,,absolute,,1.0,2.0,0.05,radians,1,10,20,0.8,30,128,2,4,60,256,0.001,8
+tcn,gpu,,absolute,,1.0,2.0,0.05,radians,1,10,20,0.8,30,128,3,4,60,256,0.001,8
+transformer,gpu,,absolute,,1.0,2.0,0.05,radians,1,10,20,0.8,30,128,2,4,60,256,0.001,8

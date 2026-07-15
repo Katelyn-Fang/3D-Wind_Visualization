@@ -1,0 +1,13 @@
+model,quick_role,direction_target,direction_min_speed,direction_loss_weight,direction_norm_weight,attitude_angle_unit
+Dummy baseline,sanity check,absolute,1.0,2.0,0.05,auto
+Ridge regression,linear baseline,absolute,1.0,2.0,0.05,auto
+Decision tree,single nonlinear tree,absolute,1.0,2.0,0.05,auto
+Random forest,bagged trees,absolute,1.0,2.0,0.05,auto
+Extra Trees,randomized bagged trees,absolute,1.0,2.0,0.05,auto
+XGBoost,gradient boosting,absolute,1.0,2.0,0.05,auto
+LightGBM,gradient boosting,absolute,1.0,2.0,0.05,auto
+CatBoost,gradient boosting,absolute,1.0,2.0,0.05,auto
+PyTorch MLP,tabular neural network,absolute,1.0,2.0,0.05,auto
+LSTM,sequence neural network,absolute,1.0,2.0,0.05,auto
+TCN,sequence neural network,absolute,1.0,2.0,0.05,auto
+Transformer,sequence neural network,absolute,1.0,2.0,0.05,auto

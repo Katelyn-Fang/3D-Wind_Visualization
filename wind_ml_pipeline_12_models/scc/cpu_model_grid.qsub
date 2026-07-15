@@ -1,0 +1,42 @@
+#!/bin/bash -l
+#$ -N wind_cpu_grid
+#$ -j y
+#$ -l h_rt=10:00:00
+#$ -pe omp 4
+#$ -t 1-8
+
+set -euo pipefail
+PROJECT_DIR="/projectnb/YOUR_PROJECT/YOUR_BU_ID/wind-ml-pipeline"
+module load miniconda
+module load academic-ml/spring-2026
+conda activate spring-2026-pyt
+cd "$PROJECT_DIR"
+export OMP_NUM_THREADS="$NSLOTS"
+export MKL_NUM_THREADS="$NSLOTS"
+export OPENBLAS_NUM_THREADS="$NSLOTS"
+
+ROW=$(awk -F',' 'NR>1 && $2=="cpu" {print}' configs/model_grid.csv | sed -n "${SGE_TASK_ID}p")
+IFS=',' read -r MODEL RESOURCE DIRECTION_MODEL DIRECTION_TARGET YAW_TRANSFORM DIR_MIN DIR_LOSS DIR_NORM ATT_UNIT N_EST MIN_LEAF MAX_DEPTH MAX_FEATURES SEQ HIDDEN LAYERS HEADS EPOCHS BATCH LR PATIENCE <<< "$ROW"
+OUT="results/scc/baseline/cpu/${SGE_TASK_ID}_${MODEL}"
+mkdir -p "$OUT"
+CMD=(python src/train_wind_model.py
+  --data data/full_standardized.csv
+  --split-manifest data/full_split_manifest.csv
+  --output-dir "$OUT"
+  --model "$MODEL"
+  --n-estimators "$N_EST"
+  --min-samples-leaf "$MIN_LEAF"
+  --max-depth "$MAX_DEPTH"
+  --max-features "$MAX_FEATURES"
+  --learning-rate "$LR"
+  --comparison-sequence-length "$SEQ"
+  --direction-target "$DIRECTION_TARGET"
+  --direction-min-speed "$DIR_MIN"
+  --direction-loss-weight "$DIR_LOSS"
+  --direction-norm-weight "$DIR_NORM"
+  --attitude-angle-unit "$ATT_UNIT"
+  --n-jobs "$NSLOTS"
+  --feature-importance)
+if [[ -n "$DIRECTION_MODEL" ]]; then CMD+=(--direction-model "$DIRECTION_MODEL"); fi
+if [[ -n "$YAW_TRANSFORM" ]]; then CMD+=(--yaw-transform "$YAW_TRANSFORM"); fi
+"${CMD[@]}"

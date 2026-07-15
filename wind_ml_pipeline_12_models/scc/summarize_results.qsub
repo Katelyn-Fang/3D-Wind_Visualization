@@ -1,0 +1,17 @@
+#!/bin/bash -l
+#$ -N wind_summary
+#$ -j y
+#$ -l h_rt=00:30:00
+#$ -pe omp 1
+set -euo pipefail
+PROJECT_DIR="/projectnb/YOUR_PROJECT/YOUR_BU_ID/wind-ml-pipeline"
+module load miniconda
+module load academic-ml/spring-2026
+conda activate spring-2026-pyt
+cd "$PROJECT_DIR"
+if [[ -d results/scc/baseline ]]; then
+  python src/summarize_runs.py --results-dir results/scc/baseline
+fi
+if [[ -d results/scc/direction_experiments ]]; then
+  python src/summarize_runs.py --results-dir results/scc/direction_experiments
+fi

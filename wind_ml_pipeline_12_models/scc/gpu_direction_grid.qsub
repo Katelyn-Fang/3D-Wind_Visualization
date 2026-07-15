@@ -1,0 +1,49 @@
+#!/bin/bash -l
+#$ -N wind_dir_gpu
+#$ -j y
+#$ -l h_rt=14:00:00
+#$ -l gpus=1
+#$ -l gpu_c=7.0
+#$ -pe omp 4
+#$ -t 1-4
+
+set -euo pipefail
+PROJECT_DIR="/projectnb/YOUR_PROJECT/YOUR_BU_ID/wind-ml-pipeline"
+module load miniconda
+module load academic-ml/spring-2026
+conda activate spring-2026-pyt
+cd "$PROJECT_DIR"
+export OMP_NUM_THREADS="$NSLOTS"
+export MKL_NUM_THREADS="$NSLOTS"
+export OPENBLAS_NUM_THREADS="$NSLOTS"
+
+ROW=$(awk -F',' 'NR>1 && $1=="1" && $4=="gpu" {print}' configs/direction_experiments.csv | sed -n "${SGE_TASK_ID}p")
+IFS=',' read -r ENABLED EXPERIMENT MODEL RESOURCE DIRECTION_MODEL DIRECTION_TARGET YAW_TRANSFORM DIR_MIN DIR_LOSS DIR_NORM ATT_UNIT N_EST MIN_LEAF MAX_DEPTH MAX_FEATURES SEQ HIDDEN LAYERS HEADS EPOCHS BATCH LR PATIENCE <<< "$ROW"
+OUT="results/scc/direction_experiments/gpu/${SGE_TASK_ID}_${EXPERIMENT}"
+mkdir -p "$OUT"
+CMD=(python src/train_wind_model.py
+  --data data/full_standardized.csv
+  --split-manifest data/full_split_manifest.csv
+  --output-dir "$OUT"
+  --model "$MODEL"
+  --sequence-length "$SEQ"
+  # Fixed at 60 (the longest sequence in this grid) so every direction run
+  # reports common_* metrics over the identical endpoint subset.
+  --comparison-sequence-length 60
+  --hidden-size "$HIDDEN"
+  --num-layers "$LAYERS"
+  --attention-heads "$HEADS"
+  --epochs "$EPOCHS"
+  --batch-size "$BATCH"
+  --learning-rate "$LR"
+  --early-stopping-patience "$PATIENCE"
+  --direction-target "$DIRECTION_TARGET"
+  --direction-min-speed "$DIR_MIN"
+  --direction-loss-weight "$DIR_LOSS"
+  --direction-norm-weight "$DIR_NORM"
+  --attitude-angle-unit "$ATT_UNIT"
+  --device cuda
+  --n-jobs "$NSLOTS"
+  --feature-importance)
+if [[ -n "$YAW_TRANSFORM" ]]; then CMD+=(--yaw-transform "$YAW_TRANSFORM"); fi
+"${CMD[@]}"

@@ -1,0 +1,14 @@
+enabled,experiment,model,resource,direction_model,direction_target,yaw_transform,direction_min_speed,direction_loss_weight,direction_norm_weight,attitude_angle_unit,n_estimators,min_samples_leaf,max_depth,max_features,sequence_length,hidden_size,num_layers,attention_heads,epochs,batch_size,learning_rate,patience
+1,et_leaf3,extra_trees,cpu,,absolute,,1.0,2.0,0.05,radians,500,3,20,0.8,30,128,2,4,60,256,0.001,8
+1,et_leaf10,extra_trees,cpu,,absolute,,1.0,2.0,0.05,radians,500,10,20,0.8,30,128,2,4,60,256,0.001,8
+1,et_rf_hybrid,extra_trees,cpu,random_forest,absolute,,1.0,2.0,0.05,radians,500,3,20,0.8,30,128,2,4,60,256,0.001,8
+1,et_cat_hybrid,extra_trees,cpu,catboost,absolute,,1.0,2.0,0.05,radians,500,3,20,0.8,30,128,2,4,60,256,0.03,8
+1,rf_leaf3,random_forest,cpu,,absolute,,1.0,2.0,0.05,radians,500,3,20,0.8,30,128,2,4,60,256,0.001,8
+1,rf_leaf10,random_forest,cpu,,absolute,,1.0,2.0,0.05,radians,500,10,20,0.8,30,128,2,4,60,256,0.001,8
+1,tcn_seq30,tcn,gpu,,absolute,,1.0,2.0,0.05,radians,1,10,20,0.8,30,128,3,4,60,256,0.001,8
+1,tcn_seq60,tcn,gpu,,absolute,,1.0,2.0,0.05,radians,1,10,20,0.8,60,128,3,4,60,256,0.001,8
+1,transformer_seq30,transformer,gpu,,absolute,,1.0,2.0,0.05,radians,1,10,20,0.8,30,128,2,4,60,256,0.001,8
+1,transformer_seq60,transformer,gpu,,absolute,,1.0,2.0,0.05,radians,1,10,20,0.8,60,128,2,4,60,256,0.001,8
+0,et_rf_relative_yaw,extra_trees,cpu,random_forest,relative_yaw,EDIT_AFTER_VALIDATION,1.0,2.0,0.05,radians,500,3,20,0.8,30,128,2,4,60,256,0.001,8
+0,tcn_relative_yaw,tcn,gpu,,relative_yaw,EDIT_AFTER_VALIDATION,1.0,2.0,0.05,radians,1,10,20,0.8,30,128,3,4,60,256,0.001,8
+0,transformer_relative_yaw,transformer,gpu,,relative_yaw,EDIT_AFTER_VALIDATION,1.0,2.0,0.05,radians,1,10,20,0.8,30,128,2,4,60,256,0.001,8

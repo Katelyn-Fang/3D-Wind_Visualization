@@ -1,0 +1,13 @@
+model,status,return_code,wall_seconds,output_directory,log_file,validation_error
+dummy,PASS,0,3.314,results/local_smoke_test/dummy,results/local_smoke_test/logs/dummy.log,
+ridge,PASS,0,3.232,results/local_smoke_test/ridge,results/local_smoke_test/logs/ridge.log,
+decision_tree,PASS,0,3.683,results/local_smoke_test/decision_tree,results/local_smoke_test/logs/decision_tree.log,
+random_forest,PASS,0,3.783,results/local_smoke_test/random_forest,results/local_smoke_test/logs/random_forest.log,
+extra_trees,PASS,0,3.498,results/local_smoke_test/extra_trees,results/local_smoke_test/logs/extra_trees.log,
+xgboost,PASS,0,8.008,results/local_smoke_test/xgboost,results/local_smoke_test/logs/xgboost.log,
+lightgbm,PASS,0,4.395,results/local_smoke_test/lightgbm,results/local_smoke_test/logs/lightgbm.log,
+catboost,PASS,0,5.61,results/local_smoke_test/catboost,results/local_smoke_test/logs/catboost.log,
+mlp,PASS,0,6.655,results/local_smoke_test/mlp,results/local_smoke_test/logs/mlp.log,
+lstm,PASS,0,6.975,results/local_smoke_test/lstm,results/local_smoke_test/logs/lstm.log,
+tcn,PASS,0,6.719,results/local_smoke_test/tcn,results/local_smoke_test/logs/tcn.log,
+transformer,PASS,0,7.311,results/local_smoke_test/transformer,results/local_smoke_test/logs/transformer.log,
