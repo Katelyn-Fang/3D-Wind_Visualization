@@ -1,0 +1,242 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="Interactive drone wind-vector simulation built with Three.js."
+    />
+    <title>Drone Wind-Vector Simulator</title>
+  </head>
+  <body>
+    <main id="app">
+      <canvas id="scene" aria-label="Interactive 3D drone wind simulation"></canvas>
+
+      <section class="panel" aria-label="Simulation controls">
+        <div class="panel-heading">
+          <div>
+            <p class="eyebrow">Interactive simulation</p>
+            <h1>Drone wind field</h1>
+          </div>
+          <button id="reset-button" type="button">Reset</button>
+        </div>
+
+        <p class="instructions">
+          Drag the drone across the grid. Drag empty space to rotate the camera,
+          and use the mouse wheel to zoom.
+        </p>
+
+        <div class="metrics" aria-live="polite">
+          <div>
+            <span>East x</span>
+            <strong id="x-value">0.00 m</strong>
+          </div>
+          <div>
+            <span>North z</span>
+            <strong id="z-value">0.00 m</strong>
+          </div>
+          <div>
+            <span>Center offset</span>
+            <strong id="offset-value">0.00 m</strong>
+          </div>
+          <div>
+            <span>Wind speed</span>
+            <strong id="speed-value">0.00 m/s</strong>
+          </div>
+        </div>
+        <p>
+          Drone speed:
+          <strong id="drone-speed-value">
+            0.00 m/s
+          </strong>
+        </p>
+
+        <p>
+          Drone acceleration:
+          <strong id="drone-acceleration-value">
+            0.00 m/s²
+          </strong>
+        </p>
+
+        <p>
+          Wind-estimate reliability:
+          <strong id="wind-confidence-value">0%</strong>
+        </p>
+
+        <div class="confidence-track">
+          <div id="wind-confidence-bar"></div>
+        </div>
+
+        <div class="components">
+          <span id="u-value">u: 0.00</span>
+          <span id="v-value">v: 0.00</span>
+          <span id="w-value">w: 0.00</span>
+        </div>
+
+        <label>
+          <span>Base wind speed <output id="base-output">2.5 m/s</output></span>
+          <input id="base-speed" type="range" min="0.5" max="6" step="0.1" value="2.5" />
+        </label>
+
+        <p>
+          Estimated aerodynamic force:
+          <strong id="aerodynamic-force-value">
+            0.00 N
+          </strong>
+        </p>
+
+        <p>
+          Physics-estimated wind:
+          <strong id="estimated-wind-value">
+            0.00 m/s
+          </strong>
+        </p>
+
+        <p>
+          Estimated components:
+          <span id="estimated-wind-components">
+            u: 0.00, v: 0.00, w: 0.00 m/s
+          </span>
+        </p>
+
+        <p>
+          Force components:
+          <span id="aerodynamic-force-components">
+            Fx: 0.00, Fy: 0.00, Fz: 0.00 N
+          </span>
+        </p>
+
+        <label>
+          <span>
+            Ambient wind direction
+            <output id="wind-direction-output">0°</output>
+          </span>
+
+          <input
+            id="wind-direction"
+            type="range"
+            min="0"
+            max="359"
+            step="1"
+            value="0"
+          />
+        </label>
+
+        <label>
+          <span>Drone disturbance <output id="turbulence-output">1.2</output></span>
+          <input id="turbulence" type="range" min="0" max="3" step="0.1" value="1.2" />
+        </label>
+
+        <label>
+          <span>Horizontal wind gradient <output id="gradient-output">0.18</output></span>
+          <input id="gradient" type="range" min="0" max="0.5" step="0.01" value="0.18" />
+        </label>
+
+        <label>
+          <span>
+            Drone altitude
+            <output id="altitude-output">1.35 m</output>
+          </span>
+
+          <input
+            id="altitude"
+            type="range"
+            min="0.5"
+            max="6"
+            step="0.05"
+            value="1.35"
+          />
+        </label>
+        
+        <label>
+          <span>
+            Drone heading
+            <output id="yaw-output">0°</output>
+          </span>
+
+          <input
+            id="yaw"
+            type="range"
+            min="-180"
+            max="180"
+            step="1"
+            value="0"
+          />
+        </label>
+
+        <label>
+          <span>
+            Drone pitch
+            <output id="pitch-output">0°</output>
+          </span>
+
+        <input
+          id="pitch"
+          type="range"
+          min="-30"
+          max="30"
+          step="1"
+          value="0"
+        />
+      </label>
+
+      <label>
+        <span>
+          Drone roll
+          <output id="roll-output">0°</output>
+        </span>
+
+        <input
+          id="roll"
+          type="range"
+          min="-30"
+          max="30"
+          step="1"
+          value="0"
+        />
+      </label>
+
+        <label class="checkbox-row">
+          <input id="animate-wind" type="checkbox" checked />
+          <span>Animate small gust changes</span>
+        </label>
+
+        <label>
+          <input
+            id="use-estimated-wind"
+            type="checkbox"
+          />
+          Use physics-estimated wind
+        </label>
+
+        <p>
+          Simulated reference wind:
+          <strong id="reference-wind-value">
+            0.00 m/s
+          </strong>
+        </p>
+
+        <p>
+          Wind-estimation error:
+          <strong id="wind-error-value">
+            0.00 m/s
+          </strong>
+        </p>
+
+        <p class="note">
+          This starter uses a demonstration equation, not validated aerodynamics.
+          Replace <code>predictWind()</code> with your trained model later.
+        </p>
+      </section>
+
+      <div class="legend" aria-label="Wind vector legend">
+        <span>Slower</span>
+        <div class="legend-gradient"></div>
+        <span>Faster</span>
+      </div>
+    </main>
+
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
