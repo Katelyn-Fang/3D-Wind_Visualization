@@ -2,11 +2,16 @@
 __pycache__/
 *.pyc
 .ipynb_checkpoints/
+*.zip
 
 # Data and generated outputs
 data/*.csv
+data/**/*.csv
+data/**/*.log
 results/**
 *.joblib
+*.pt
+*.pth
 *.o[0-9]*
 *.e[0-9]*
 
