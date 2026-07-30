@@ -1,0 +1,25 @@
+#!/bin/bash -l
+#$ -P rise-portfolio
+#$ -N wind_final_analysis
+#$ -j y
+#$ -l h_rt=02:00:00
+#$ -pe omp 2
+#$ -l mem_per_core=4G
+
+set -euo pipefail
+
+PROJECT_DIR="/projectnb/rise-portfolio/kfang21/wind-ml-upload/wind_ml_pipeline_12_models"
+
+module load miniconda
+module load academic-ml/spring-2026
+set +u
+conda activate spring-2026-pyt
+set -u
+
+cd "$PROJECT_DIR"
+export MPLBACKEND=Agg
+export OMP_NUM_THREADS="$NSLOTS"
+export MKL_NUM_THREADS="$NSLOTS"
+export OPENBLAS_NUM_THREADS="$NSLOTS"
+
+bash scripts/run_final_analysis.sh results/scc/baseline results/scc/final_analysis
