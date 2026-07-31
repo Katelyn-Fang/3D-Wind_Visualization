@@ -26,7 +26,7 @@ MODEL_PATH = Path(
 app = FastAPI(title="Drone wind model API")
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
+    allow_origin_regex=r"https?://(localhost|127\.0\.0\.1):\d+",
     allow_methods=["GET", "POST"],
     allow_headers=["*"],
 )
@@ -112,4 +112,3 @@ def predict(sample: Telemetry) -> dict[str, float]:
         "v": float(v),
         "w": 0.0,
     }
-
