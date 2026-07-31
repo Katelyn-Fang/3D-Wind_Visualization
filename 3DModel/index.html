@@ -207,7 +207,7 @@
             id="use-estimated-wind"
             type="checkbox"
           />
-          Use physics-estimated wind
+          Use trained ML wind model
         </label>
 
         <p>
@@ -225,8 +225,8 @@
         </p>
 
         <p class="note">
-          This starter uses a demonstration equation, not validated aerodynamics.
-          Replace <code>predictWind()</code> with your trained model later.
+          Start the local ML service before enabling the trained model. The first
+          prediction may take time while the 5.2 GB artifact loads.
         </p>
       </section>
 

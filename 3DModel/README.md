@@ -45,18 +45,21 @@ Therefore map model outputs as:
 Three.js vector = (u, w, v)
 ```
 
-## Replace the equation with a model
+## Run with the trained model
 
-Open `src/main.js` and find:
+The Python model stays outside the browser because `wind_model.joblib` is 5.2 GB.
+Start the prediction service in a second terminal:
 
-```js
-function predictWind(samplePosition, dronePosition, timeSeconds) {
-  // ...
-}
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements-ml.txt
+WIND_MODEL_PATH="$HOME/Downloads/wind_model.joblib" uvicorn ml_server:app --reload
 ```
 
-Keep the rest of the visualization unchanged. Replace only the contents of
-that function, or make it read the latest prediction returned by a backend.
+Then run `npm run dev` in the first terminal and enable **Use trained ML wind
+model**. The first prediction can take several minutes and substantial memory
+while the artifact loads; subsequent predictions reuse the loaded model.
 
 ## Production build
 

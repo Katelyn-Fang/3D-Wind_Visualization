@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import {OrbitControls} from "three/addons/controls/OrbitControls.js";
 import "./style.css";
+import { fetchMlWind } from "./mlClient.js";
 import {
   predictWind, 
   estimateAerodynamicForce,
@@ -126,7 +127,6 @@ const telemetry = {
 
   estimatedWindConfidence: 0,
 
-  referenceWindX: 0,
   referenceWindX: 0,
   referenceWindY: 0,
   referenceWindZ: 0,
@@ -521,6 +521,37 @@ const measuredAcceleration = new THREE.Vector3();
 const smoothedAcceleration = new THREE.Vector3();
 const smoothedEstimatedWind = new THREE.Vector3();
 const referenceWindVector = new THREE.Vector3();
+let latestMlWind = null;
+let mlRequestInFlight = false;
+let lastMlRequestSeconds = -Infinity;
+const mlSessionId = `vite-${Date.now()}`;
+
+async function updateMlPrediction(timeSeconds) {
+  if (!params.useEstimatedWind || mlRequestInFlight || timeSeconds - lastMlRequestSeconds < 0.5) {
+    return;
+  }
+  mlRequestInFlight = true;
+  lastMlRequestSeconds = timeSeconds;
+  try {
+    latestMlWind = await fetchMlWind({
+      session_id: mlSessionId,
+      elapsed_s: timeSeconds,
+      x: drone.position.x,
+      y: drone.position.z,
+      z: drone.position.y,
+      roll: THREE.MathUtils.degToRad(telemetry.rollDegrees),
+      pitch: THREE.MathUtils.degToRad(telemetry.pitchDegrees),
+      yaw: THREE.MathUtils.degToRad(telemetry.yawDegrees),
+      battery_v: 15.2,
+      battery_c: 4.0,
+    });
+  } catch (error) {
+    console.warn(error.message);
+    latestMlWind = null;
+  } finally {
+    mlRequestInFlight = false;
+  }
+}
 
 
 
@@ -1110,6 +1141,7 @@ function animate() {
     0.1
   );
   const timeSeconds = clock.elapsedTime;
+  updateMlPrediction(timeSeconds);
   updateDroneVelocity(deltaTime);
 
   const aerodynamicForce =
@@ -1147,6 +1179,15 @@ function animate() {
 
   telemetry.estimatedWindSpeed =
     smoothedEstimatedWind.length();
+
+  if (params.useEstimatedWind && latestMlWind) {
+    smoothedEstimatedWind.set(latestMlWind.u, latestMlWind.w, latestMlWind.v);
+    telemetry.estimatedWindX = latestMlWind.u;
+    telemetry.estimatedWindY = latestMlWind.w;
+    telemetry.estimatedWindZ = latestMlWind.v;
+    telemetry.estimatedWindSpeed = latestMlWind.speed;
+    telemetry.estimatedWindConfidence = 100;
+  }
 
   const referenceWind =
     calculateReferenceWind(
@@ -1190,6 +1231,10 @@ if (
       rawWindEstimate,
       aerodynamicForce
     );
+
+  if (params.useEstimatedWind && latestMlWind) {
+    telemetry.estimatedWindConfidence = 100;
+  }
 
   telemetry.aerodynamicForceX =
     aerodynamicForce.x;
