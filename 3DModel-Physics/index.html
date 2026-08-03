@@ -110,7 +110,10 @@
         <section id="numeric-motion-controls" class="numeric-controls" hidden>
           <p class="instructions">
             Values are offsets from the drone's current pose. Position uses
-            inches, rotation uses degrees, and duration uses seconds.
+            inches, rotation uses degrees, and duration uses seconds. Numeric
+            motion automatically uses the inverse-drag model so the inferred
+            wind direction follows the requested displacement. Braking is
+            assigned to the drone controller so the wind field does not reverse.
           </p>
 
           <div class="numeric-grid">

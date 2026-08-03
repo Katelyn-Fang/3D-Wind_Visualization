@@ -76,13 +76,21 @@ Open the URL printed by Vite, then drag the drone across the grid.
 Enable **Use numeric motion inputs** to replace mouse dragging with a scripted
 relative movement. Enter `x`, `y`, and `z` offsets in inches, attitude offsets
 in degrees, and a duration in seconds. The simulator animates a minimum-jerk
-trajectory from the current pose to the requested pose.
+trajectory from the current pose to the requested pose. Numeric mode selects
+the inverse-drag model automatically because the identified baseline estimates
+measured ambient wind and is not an inverse solution for arbitrary offsets.
+The strongest forward-driving estimate reached so far is displayed throughout
+the motion; the drone controller is assumed to provide the braking force, so
+the visualized wind does not reverse during the deceleration half of the path.
+Numeric mode also disables the animated lateral wake wobble so the field keeps
+a steady direction throughout the programmed movement.
 
 Because the trajectory supplies analytic velocity and acceleration, the
 inverse model responds predictably to the inputs: doubling the distance doubles
 the trajectory's velocity and acceleration, while doubling the duration halves
 velocity and reduces acceleration to one quarter. The strongest forward wind
-estimate is held after arrival so the result can be inspected.
+estimate is retained during the animation and held after arrival so the result
+can be inspected.
 
 ## Validate
 

@@ -1,6 +1,11 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { inferWindFromMotion, PHYSICS } from "./windModel.js";
+import * as THREE from "three";
+import {
+  inferWindFromMotion,
+  PHYSICS,
+  predictWind,
+} from "./windModel.js";
 import { inferIdentifiedWind } from "./identifiedBaseline.js";
 
 function telemetry(overrides = {}) {
@@ -68,4 +73,31 @@ test("yaw rotates identified wind direction without changing its speed", () => {
   assert.ok(Math.abs(north.speed - east.speed) < 1e-9);
   assert.ok(Math.abs(north.x - east.z) < 1e-9);
   assert.ok(Math.abs(north.z + east.x) < 1e-9);
+});
+
+test("steady numeric field does not oscillate laterally over time", () => {
+  const dronePosition = new THREE.Vector3(0, 1.35, 0);
+  const samplePosition = new THREE.Vector3(3, 1.35, 1);
+  const windTelemetry = {
+    estimatedWindX: 5,
+    estimatedWindY: 0,
+    estimatedWindZ: 0,
+  };
+
+  const first = predictWind(
+    samplePosition,
+    dronePosition,
+    0,
+    { steadyDirection: true },
+    windTelemetry,
+  ).clone();
+  const later = predictWind(
+    samplePosition,
+    dronePosition,
+    1,
+    { steadyDirection: true },
+    windTelemetry,
+  ).clone();
+
+  assert.ok(first.distanceTo(later) < 1e-12);
 });

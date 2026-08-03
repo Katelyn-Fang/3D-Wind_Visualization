@@ -204,6 +204,11 @@ select {
   background: #102335;
 }
 
+select:disabled {
+  cursor: not-allowed;
+  opacity: 0.62;
+}
+
 .validation-card {
   margin-top: 14px;
   padding: 11px;

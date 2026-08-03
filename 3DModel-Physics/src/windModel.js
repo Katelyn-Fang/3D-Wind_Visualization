@@ -153,7 +153,7 @@ export function predictWind(
   samplePosition,
   dronePosition,
   timeSeconds,
-  _params,
+  params = {},
   telemetry = {},
 ) {
   baseFlow.set(
@@ -208,7 +208,10 @@ export function predictWind(
     modeledFlow.addScaledVector(flowDirection, -speed * deficit);
 
     lateralDirection.set(-flowDirection.z, 0, flowDirection.x);
-    if (lateralDirection.lengthSq() > 1e-8) {
+    if (
+      !params.steadyDirection &&
+      lateralDirection.lengthSq() > 1e-8
+    ) {
       lateralDirection.normalize();
       const wobble =
         Math.sin(timeSeconds * 3.2 + downstreamDistance * 1.7) *

@@ -8,6 +8,7 @@ import {
 } from "./windModel.js";
 import {
   createNumericMotionPlan,
+  retainStrongestForwardWind,
   sampleNumericMotion,
 } from "./numericMotion.js";
 import {
@@ -95,6 +96,7 @@ const physicsModelInput = document.querySelector("#physics-model");
 const modelStatus = document.querySelector("#model-status");
 const validationError = document.querySelector("#validation-error");
 const validationDetails = document.querySelector("#validation-details");
+let modelBeforeNumericMode = physicsModelInput.value;
 let droneHeight = telemetry.altitude;
 const DRAG_LIMIT = 9.5;
 
@@ -491,17 +493,26 @@ function updatePhysicsEstimate(deltaTime) {
   }
 
   if (numericMode && programmedMotion.active) {
-    const forwardScore = programmedMotion.travelDirection.lengthSq() > 0
-      ? targetWind.dot(programmedMotion.travelDirection)
-      : targetWind.length();
+    const retained = retainStrongestForwardWind({
+      currentWind: targetWind,
+      travelDirection: programmedMotion.travelDirection,
+      previousWind: programmedMotion.peakWind,
+      previousScore: programmedMotion.peakForwardScore,
+    });
 
-    if (
-      forwardScore > programmedMotion.peakForwardScore &&
-      targetWind.lengthSq() > 0.0004
-    ) {
-      programmedMotion.peakForwardScore = forwardScore;
-      programmedMotion.peakWind.copy(targetWind);
+    if (retained.updated) {
+      programmedMotion.peakForwardScore = retained.score;
+      programmedMotion.peakWind.set(
+        retained.wind.x,
+        retained.wind.y,
+        retained.wind.z,
+      );
       programmedMotion.peakForce = { ...displayedForce };
+    }
+
+    if (programmedMotion.peakWind.lengthSq() > 0) {
+      targetWind.copy(programmedMotion.peakWind);
+      displayedForce = programmedMotion.peakForce;
     }
   }
 
@@ -561,6 +572,7 @@ function updatePhysicsEstimate(deltaTime) {
 }
 
 physicsModelInput.addEventListener("change", () => {
+  modelBeforeNumericMode = physicsModelInput.value;
   cancelNumericMotion("Physics model changed. Numeric result cleared.");
 });
 
@@ -812,8 +824,21 @@ function updateInputMode() {
   const numericMode = numericModeInput.checked;
   dragging = false;
   orbitControls.enabled = true;
+  params.steadyDirection = numericMode;
+
+  if (numericMode) {
+    modelBeforeNumericMode = physicsModelInput.value;
+    physicsModelInput.value = "inverse";
+    physicsModelInput.disabled = true;
+  } else {
+    physicsModelInput.disabled = false;
+    physicsModelInput.value = modelBeforeNumericMode;
+  }
+
   cancelNumericMotion(
-    numericMode ? "Ready for numeric input." : "Numeric result cleared.",
+    numericMode
+      ? "Ready for numeric input. Inverse-drag model selected automatically."
+      : "Numeric result cleared.",
   );
   numericControls.hidden = !numericMode;
   manualControls.hidden = numericMode;

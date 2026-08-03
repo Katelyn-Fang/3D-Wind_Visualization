@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   createNumericMotionPlan,
   INCH_TO_METERS,
+  retainStrongestForwardWind,
   sampleNumericMotion,
 } from "./numericMotion.js";
 import { inferWindFromMotion } from "./windModel.js";
@@ -92,6 +93,85 @@ test("distance and duration change the inferred wind strength", () => {
 
   assert.ok(windAtQuarter(farther) > windAtQuarter(baseline));
   assert.ok(windAtQuarter(faster) > windAtQuarter(baseline));
+});
+
+test("axis-only offsets infer wind along the requested axis", () => {
+  for (const axis of ["x", "y", "z"]) {
+    for (const sign of [-1, 1]) {
+      const offsetInches = { x: 0, y: 0, z: 0 };
+      offsetInches[axis] = 50 * sign;
+      const motion = plan({ offsetInches });
+      const sample = sampleNumericMotion(
+        motion,
+        motion.durationSeconds * 0.25,
+      );
+      const wind = inferWindFromMotion({
+        yawDegrees: 0,
+        pitchDegrees: 0,
+        rollDegrees: 0,
+        velocityX: sample.velocity.x,
+        velocityY: sample.velocity.y,
+        velocityZ: sample.velocity.z,
+        accelerationX: sample.acceleration.x,
+        accelerationY: sample.acceleration.y,
+        accelerationZ: sample.acceleration.z,
+      });
+
+      assert.ok(wind[axis] * sign > 0);
+      for (const otherAxis of ["x", "y", "z"]) {
+        if (otherAxis !== axis) {
+          assert.ok(Math.abs(wind[otherAxis]) < 1e-12);
+        }
+      }
+    }
+  }
+});
+
+test("displayed driving wind does not reverse during trajectory braking", () => {
+  for (const axis of ["x", "y", "z"]) {
+    const offsetInches = { x: 0, y: 0, z: 0 };
+    offsetInches[axis] = 50;
+    const motion = plan({ offsetInches });
+    const travelDirection = { x: 0, y: 0, z: 0 };
+    travelDirection[axis] = 1;
+    let previousWind = { x: 0, y: 0, z: 0 };
+    let previousScore = -Infinity;
+    let rawWindReversed = false;
+
+    for (let step = 1; step <= 40; step += 1) {
+      const sample = sampleNumericMotion(
+        motion,
+        motion.durationSeconds * step / 40,
+      );
+      const rawWind = inferWindFromMotion({
+        yawDegrees: 0,
+        pitchDegrees: 0,
+        rollDegrees: 0,
+        velocityX: sample.velocity.x,
+        velocityY: sample.velocity.y,
+        velocityZ: sample.velocity.z,
+        accelerationX: sample.acceleration.x,
+        accelerationY: sample.acceleration.y,
+        accelerationZ: sample.acceleration.z,
+      });
+      if (rawWind[axis] < 0) rawWindReversed = true;
+
+      const retained = retainStrongestForwardWind({
+        currentWind: rawWind,
+        travelDirection,
+        previousWind,
+        previousScore,
+      });
+      previousWind = retained.wind;
+      previousScore = retained.score;
+
+      if (Math.hypot(previousWind.x, previousWind.y, previousWind.z) >= 0.02) {
+        assert.ok(previousWind[axis] > 0);
+      }
+    }
+
+    assert.equal(rawWindReversed, true);
+  }
 });
 
 test("rejects invalid durations", () => {
