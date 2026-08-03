@@ -38,12 +38,20 @@
             <strong id="z-value">0.00 m</strong>
           </div>
           <div>
+            <span>Up y</span>
+            <strong id="y-value">1.35 m</strong>
+          </div>
+          <div>
             <span>Drone speed</span>
             <strong id="drone-speed-value">0.00 m/s</strong>
           </div>
           <div>
             <span>Acceleration</span>
             <strong id="drone-acceleration-value">0.00 m/s²</strong>
+          </div>
+          <div>
+            <span>Input mode</span>
+            <strong id="mode-value">Drag</strong>
           </div>
         </div>
 
@@ -75,25 +83,87 @@
           <div id="wind-confidence-bar"></div>
         </div>
 
-        <label>
-          <span>Drone altitude <output id="altitude-output">1.35 m</output></span>
-          <input id="altitude" type="range" min="0.5" max="6" step="0.05" value="1.35" />
+        <label class="checkbox-row mode-toggle">
+          <input id="numeric-input-mode" type="checkbox" />
+          <span>Use numeric motion inputs</span>
         </label>
 
-        <label>
-          <span>Drone heading <output id="yaw-output">0°</output></span>
-          <input id="yaw" type="range" min="-180" max="180" step="1" value="0" />
-        </label>
+        <section id="numeric-motion-controls" class="numeric-controls" hidden>
+          <p class="instructions">
+            Values are offsets from the drone's current pose. Position uses
+            inches, rotation uses degrees, and duration uses seconds.
+          </p>
 
-        <label>
-          <span>Drone pitch <output id="pitch-output">0°</output></span>
-          <input id="pitch" type="range" min="-30" max="30" step="1" value="0" />
-        </label>
+          <div class="numeric-grid">
+            <label>
+              <span>X offset (in)</span>
+              <input id="numeric-x" type="number" step="0.1" value="24" />
+            </label>
+            <label>
+              <span>Y offset (in)</span>
+              <input id="numeric-y" type="number" step="0.1" value="0" />
+            </label>
+            <label>
+              <span>Z offset (in)</span>
+              <input id="numeric-z" type="number" step="0.1" value="0" />
+            </label>
+            <label>
+              <span>Roll offset (°)</span>
+              <input id="numeric-roll" type="number" step="0.1" value="0" />
+            </label>
+            <label>
+              <span>Pitch offset (°)</span>
+              <input id="numeric-pitch" type="number" step="0.1" value="0" />
+            </label>
+            <label>
+              <span>Yaw offset (°)</span>
+              <input id="numeric-yaw" type="number" step="0.1" value="0" />
+            </label>
+            <label class="duration-input">
+              <span>Travel time (s)</span>
+              <input
+                id="numeric-duration"
+                type="number"
+                min="0.1"
+                max="60"
+                step="0.1"
+                value="2"
+              />
+            </label>
+          </div>
 
-        <label>
-          <span>Drone roll <output id="roll-output">0°</output></span>
-          <input id="roll" type="range" min="-30" max="30" step="1" value="0" />
-        </label>
+          <div class="numeric-actions">
+            <button id="run-numeric-motion" type="button">Animate motion</button>
+            <button id="cancel-numeric-motion" type="button">Clear result</button>
+          </div>
+
+          <progress id="numeric-progress" max="1" value="0"></progress>
+          <p id="numeric-status" class="numeric-status" role="status">
+            Ready for numeric input.
+          </p>
+        </section>
+
+        <fieldset id="manual-motion-controls">
+          <label>
+            <span>Drone altitude <output id="altitude-output">1.35 m</output></span>
+            <input id="altitude" type="range" min="0.5" max="6" step="0.05" value="1.35" />
+          </label>
+
+          <label>
+            <span>Drone heading <output id="yaw-output">0°</output></span>
+            <input id="yaw" type="range" min="-180" max="180" step="1" value="0" />
+          </label>
+
+          <label>
+            <span>Drone pitch <output id="pitch-output">0°</output></span>
+            <input id="pitch" type="range" min="-30" max="30" step="1" value="0" />
+          </label>
+
+          <label>
+            <span>Drone roll <output id="roll-output">0°</output></span>
+            <input id="roll" type="range" min="-30" max="30" step="1" value="0" />
+          </label>
+        </fieldset>
 
         <p class="note">
           This is not a sensor reconstruction. Many forces can produce the same

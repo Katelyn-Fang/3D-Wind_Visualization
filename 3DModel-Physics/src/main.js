@@ -6,6 +6,10 @@ import {
   PHYSICS,
   predictWind,
 } from "./windModel.js";
+import {
+  createNumericMotionPlan,
+  sampleNumericMotion,
+} from "./numericMotion.js";
 
 const canvas = document.querySelector("#scene");
 const app = document.querySelector("#app");
@@ -283,6 +287,18 @@ const previousVelocity = new THREE.Vector3();
 const measuredAcceleration = new THREE.Vector3();
 const smoothedAcceleration = new THREE.Vector3();
 const smoothedWind = new THREE.Vector3();
+const targetWind = new THREE.Vector3();
+
+const programmedMotion = {
+  active: false,
+  holdingResult: false,
+  plan: null,
+  elapsedSeconds: 0,
+  peakForwardScore: -Infinity,
+  peakWind: new THREE.Vector3(),
+  peakForce: { x: 0, y: 0, z: 0, magnitude: 0 },
+  travelDirection: new THREE.Vector3(),
+};
 
 let dragging = false;
 let hovered = false;
@@ -326,9 +342,96 @@ function updateMotion(deltaTime) {
   previousVelocity.copy(smoothedVelocity);
 }
 
+function resetKinematics() {
+  measuredVelocity.set(0, 0, 0);
+  smoothedVelocity.set(0, 0, 0);
+  previousVelocity.set(0, 0, 0);
+  measuredAcceleration.set(0, 0, 0);
+  smoothedAcceleration.set(0, 0, 0);
+  telemetry.velocityX = 0;
+  telemetry.velocityY = 0;
+  telemetry.velocityZ = 0;
+  telemetry.speed = 0;
+  telemetry.accelerationX = 0;
+  telemetry.accelerationY = 0;
+  telemetry.accelerationZ = 0;
+  telemetry.accelerationMagnitude = 0;
+  previousDronePosition.copy(drone.position);
+}
+
+function updateProgrammedMotion(elapsedDelta) {
+  if (!programmedMotion.active || !programmedMotion.plan) return;
+
+  programmedMotion.elapsedSeconds += elapsedDelta;
+  const sample = sampleNumericMotion(
+    programmedMotion.plan,
+    programmedMotion.elapsedSeconds,
+  );
+
+  drone.position.set(
+    sample.position.x,
+    sample.position.y,
+    sample.position.z,
+  );
+  droneHeight = sample.position.y;
+  telemetry.altitude = droneHeight;
+  dragPlane.constant = -droneHeight;
+
+  applyDroneAttitude(
+    sample.attitude.yaw,
+    sample.attitude.pitch,
+    sample.attitude.roll,
+  );
+
+  telemetry.velocityX = sample.velocity.x;
+  telemetry.velocityY = sample.velocity.y;
+  telemetry.velocityZ = sample.velocity.z;
+  telemetry.speed = Math.hypot(
+    sample.velocity.x,
+    sample.velocity.y,
+    sample.velocity.z,
+  );
+  telemetry.accelerationX = sample.acceleration.x;
+  telemetry.accelerationY = sample.acceleration.y;
+  telemetry.accelerationZ = sample.acceleration.z;
+  telemetry.accelerationMagnitude = Math.hypot(
+    sample.acceleration.x,
+    sample.acceleration.y,
+    sample.acceleration.z,
+  );
+
+  numericProgress.value = sample.progress;
+  numericStatus.classList.remove("error");
+  numericStatus.textContent =
+    `Animating ${(sample.progress * 100).toFixed(0)}% — ` +
+    `${sample.elapsedSeconds.toFixed(2)} / ` +
+    `${programmedMotion.plan.durationSeconds.toFixed(2)} s`;
+
+  if (sample.done) {
+    programmedMotion.active = false;
+    programmedMotion.holdingResult = true;
+    runNumericButton.disabled = false;
+    runNumericButton.textContent = "Animate again";
+    numericStatus.textContent =
+      `Arrived in ${programmedMotion.plan.durationSeconds.toFixed(2)} s. ` +
+      "Holding the strongest forward inferred wind for inspection.";
+  }
+}
+
 function updatePhysicsEstimate(deltaTime) {
   const estimate = inferWindFromMotion(telemetry);
-  const targetWind = new THREE.Vector3(estimate.x, estimate.y, estimate.z);
+  targetWind.set(estimate.x, estimate.y, estimate.z);
+  let displayedForce = estimate.aerodynamicForce;
+  const numericMode = numericModeInput.checked;
+
+  if (
+    numericMode &&
+    programmedMotion.holdingResult &&
+    programmedMotion.peakWind.lengthSq() > 0
+  ) {
+    targetWind.copy(programmedMotion.peakWind);
+    displayedForce = programmedMotion.peakForce;
+  }
 
   const hasAttitudeDemand =
     Math.abs(telemetry.pitchDegrees) > 0.5 ||
@@ -337,29 +440,61 @@ function updatePhysicsEstimate(deltaTime) {
   // Releasing the pointer is not a physical braking maneuver. Decay the last
   // estimate instead of interpreting the synthetic velocity decay as a gust
   // in the opposite direction.
-  if (!dragging && !hasAttitudeDemand) {
+  if (!numericMode && !dragging && !hasAttitudeDemand) {
     targetWind.set(0, 0, 0);
   }
 
-  const smoothingRate = dragging || hasAttitudeDemand ? 7 : 3;
+  if (
+    numericMode &&
+    !programmedMotion.active &&
+    !programmedMotion.holdingResult
+  ) {
+    targetWind.set(0, 0, 0);
+  }
+
+  if (numericMode && programmedMotion.active) {
+    const forwardScore = programmedMotion.travelDirection.lengthSq() > 0
+      ? targetWind.dot(programmedMotion.travelDirection)
+      : targetWind.length();
+
+    if (
+      forwardScore > programmedMotion.peakForwardScore &&
+      targetWind.lengthSq() > 0.0004
+    ) {
+      programmedMotion.peakForwardScore = forwardScore;
+      programmedMotion.peakWind.copy(targetWind);
+      programmedMotion.peakForce = { ...estimate.aerodynamicForce };
+    }
+  }
+
+  const hasDrivenInput =
+    dragging ||
+    hasAttitudeDemand ||
+    programmedMotion.active ||
+    programmedMotion.holdingResult;
+  const smoothingRate = hasDrivenInput ? 7 : 3;
   smoothedWind.lerp(targetWind, 1 - Math.exp(-smoothingRate * deltaTime));
 
   telemetry.estimatedWindX = smoothedWind.x;
   telemetry.estimatedWindY = smoothedWind.y;
   telemetry.estimatedWindZ = smoothedWind.z;
   telemetry.estimatedWindSpeed = smoothedWind.length();
-  telemetry.aerodynamicForceX = estimate.aerodynamicForce.x;
-  telemetry.aerodynamicForceY = estimate.aerodynamicForce.y;
-  telemetry.aerodynamicForceZ = estimate.aerodynamicForce.z;
-  telemetry.aerodynamicForceMagnitude = estimate.aerodynamicForce.magnitude;
+  telemetry.aerodynamicForceX = displayedForce.x;
+  telemetry.aerodynamicForceY = displayedForce.y;
+  telemetry.aerodynamicForceZ = displayedForce.z;
+  telemetry.aerodynamicForceMagnitude = displayedForce.magnitude;
 
   const signal = THREE.MathUtils.clamp(
     (telemetry.speed + telemetry.accelerationMagnitude * 0.2) / 5,
     0,
     1,
   );
-  telemetry.estimatedWindConfidence =
-    dragging || hasAttitudeDemand ? 35 + signal * 65 : 0;
+  if (numericMode && programmedMotion.holdingResult) {
+    telemetry.estimatedWindConfidence = 100;
+  } else {
+    telemetry.estimatedWindConfidence =
+      hasDrivenInput ? 35 + signal * 65 : 0;
+  }
 }
 
 const raycaster = new THREE.Raycaster();
@@ -380,6 +515,7 @@ function isDroneHit() {
 }
 
 renderer.domElement.addEventListener("pointerdown", (event) => {
+  if (numericModeInput.checked) return;
   updatePointer(event);
   if (!isDroneHit()) return;
 
@@ -391,6 +527,10 @@ renderer.domElement.addEventListener("pointerdown", (event) => {
 });
 
 renderer.domElement.addEventListener("pointermove", (event) => {
+  if (numericModeInput.checked) {
+    renderer.domElement.style.cursor = "default";
+    return;
+  }
   updatePointer(event);
 
   if (!dragging) {
@@ -421,6 +561,15 @@ function stopDragging(event) {
 
 renderer.domElement.addEventListener("pointerup", stopDragging);
 renderer.domElement.addEventListener("pointercancel", stopDragging);
+
+function applyDroneAttitude(yaw, pitch, roll) {
+  telemetry.yawDegrees = yaw;
+  telemetry.pitchDegrees = pitch;
+  telemetry.rollDegrees = roll;
+  drone.rotation.y = -THREE.MathUtils.degToRad(yaw);
+  drone.rotation.z = THREE.MathUtils.degToRad(pitch);
+  drone.rotation.x = THREE.MathUtils.degToRad(roll);
+}
 
 function connectAttitudeControl(id, outputId, property, axis) {
   const input = document.querySelector(id);
@@ -458,7 +607,160 @@ function updateAltitude() {
 altitudeInput.addEventListener("input", updateAltitude);
 updateAltitude();
 
+const numericModeInput = document.querySelector("#numeric-input-mode");
+const numericControls = document.querySelector("#numeric-motion-controls");
+const manualControls = document.querySelector("#manual-motion-controls");
+const numericProgress = document.querySelector("#numeric-progress");
+const numericStatus = document.querySelector("#numeric-status");
+const runNumericButton = document.querySelector("#run-numeric-motion");
+const cancelNumericButton = document.querySelector("#cancel-numeric-motion");
+
+const numericInputs = {
+  x: document.querySelector("#numeric-x"),
+  y: document.querySelector("#numeric-y"),
+  z: document.querySelector("#numeric-z"),
+  roll: document.querySelector("#numeric-roll"),
+  pitch: document.querySelector("#numeric-pitch"),
+  yaw: document.querySelector("#numeric-yaw"),
+  duration: document.querySelector("#numeric-duration"),
+};
+
+function cancelNumericMotion(message = "Result cleared.") {
+  programmedMotion.active = false;
+  programmedMotion.holdingResult = false;
+  programmedMotion.plan = null;
+  programmedMotion.elapsedSeconds = 0;
+  programmedMotion.peakForwardScore = -Infinity;
+  programmedMotion.peakWind.set(0, 0, 0);
+  programmedMotion.peakForce = { x: 0, y: 0, z: 0, magnitude: 0 };
+  programmedMotion.travelDirection.set(0, 0, 0);
+  smoothedWind.set(0, 0, 0);
+  resetKinematics();
+  numericProgress.value = 0;
+  numericStatus.classList.remove("error");
+  numericStatus.textContent = message;
+  runNumericButton.disabled = false;
+  runNumericButton.textContent = "Animate motion";
+}
+
+function readNumericValue(input, label) {
+  const value = Number(input.value);
+  if (!Number.isFinite(value)) {
+    throw new Error(`${label} must be a number.`);
+  }
+  return value;
+}
+
+function validatePlanTarget(plan) {
+  const { x, y, z } = plan.targetPosition;
+  if (Math.abs(x) > DRAG_LIMIT || Math.abs(z) > DRAG_LIMIT) {
+    throw new Error(`Target x and z must remain within ±${DRAG_LIMIT} m.`);
+  }
+  if (y < 0.5 || y > 6) {
+    throw new Error("Target y must remain between 0.5 m and 6 m.");
+  }
+  if (
+    Math.abs(plan.targetAttitude.roll) > 30 ||
+    Math.abs(plan.targetAttitude.pitch) > 30
+  ) {
+    throw new Error("Target roll and pitch must remain within ±30°.");
+  }
+}
+
+function startNumericMotion() {
+  try {
+    const plan = createNumericMotionPlan({
+      startPosition: drone.position,
+      offsetInches: {
+        x: readNumericValue(numericInputs.x, "X offset"),
+        y: readNumericValue(numericInputs.y, "Y offset"),
+        z: readNumericValue(numericInputs.z, "Z offset"),
+      },
+      startAttitude: {
+        roll: telemetry.rollDegrees,
+        pitch: telemetry.pitchDegrees,
+        yaw: telemetry.yawDegrees,
+      },
+      attitudeOffsetDegrees: {
+        roll: readNumericValue(numericInputs.roll, "Roll offset"),
+        pitch: readNumericValue(numericInputs.pitch, "Pitch offset"),
+        yaw: readNumericValue(numericInputs.yaw, "Yaw offset"),
+      },
+      durationSeconds: readNumericValue(numericInputs.duration, "Travel time"),
+    });
+
+    validatePlanTarget(plan);
+    programmedMotion.active = true;
+    programmedMotion.holdingResult = false;
+    programmedMotion.plan = plan;
+    programmedMotion.elapsedSeconds = 0;
+    programmedMotion.peakForwardScore = -Infinity;
+    programmedMotion.peakWind.set(0, 0, 0);
+    programmedMotion.peakForce = { x: 0, y: 0, z: 0, magnitude: 0 };
+    programmedMotion.travelDirection.set(
+      plan.offsetMeters.x,
+      plan.offsetMeters.y,
+      plan.offsetMeters.z,
+    );
+    if (programmedMotion.travelDirection.lengthSq() > 0) {
+      programmedMotion.travelDirection.normalize();
+    }
+
+    resetKinematics();
+    smoothedWind.set(0, 0, 0);
+    numericProgress.value = 0;
+    numericStatus.classList.remove("error");
+    numericStatus.textContent =
+      `Animating ${(plan.distanceMeters / 0.0254).toFixed(1)} in ` +
+      `over ${plan.durationSeconds.toFixed(2)} s.`;
+    runNumericButton.disabled = true;
+    runNumericButton.textContent = "Animating…";
+  } catch (error) {
+    numericStatus.classList.add("error");
+    numericStatus.textContent = error.message;
+  }
+}
+
+function synchronizeManualControls() {
+  const normalizedYaw =
+    ((telemetry.yawDegrees + 180) % 360 + 360) % 360 - 180;
+  const values = [
+    [altitudeInput, drone.position.y, altitudeOutput, `${drone.position.y.toFixed(2)} m`],
+    [document.querySelector("#yaw"), normalizedYaw, document.querySelector("#yaw-output"), `${normalizedYaw.toFixed(0)}°`],
+    [document.querySelector("#pitch"), telemetry.pitchDegrees, document.querySelector("#pitch-output"), `${telemetry.pitchDegrees.toFixed(0)}°`],
+    [document.querySelector("#roll"), telemetry.rollDegrees, document.querySelector("#roll-output"), `${telemetry.rollDegrees.toFixed(0)}°`],
+  ];
+
+  for (const [input, value, output, label] of values) {
+    input.value = String(value);
+    output.textContent = label;
+  }
+  telemetry.yawDegrees = normalizedYaw;
+  droneHeight = drone.position.y;
+  dragPlane.constant = -droneHeight;
+  previousDronePosition.copy(drone.position);
+}
+
+function updateInputMode() {
+  const numericMode = numericModeInput.checked;
+  dragging = false;
+  orbitControls.enabled = true;
+  cancelNumericMotion(
+    numericMode ? "Ready for numeric input." : "Numeric result cleared.",
+  );
+  numericControls.hidden = !numericMode;
+  manualControls.hidden = numericMode;
+  renderer.domElement.style.cursor = numericMode ? "default" : "grab";
+  if (!numericMode) synchronizeManualControls();
+}
+
+numericModeInput.addEventListener("change", updateInputMode);
+runNumericButton.addEventListener("click", startNumericMotion);
+cancelNumericButton.addEventListener("click", () => cancelNumericMotion());
+updateInputMode();
+
 document.querySelector("#reset-button").addEventListener("click", () => {
+  cancelNumericMotion("Simulation reset.");
   for (const [id, value] of [
     ["#altitude", "1.35"],
     ["#yaw", "0"],
@@ -468,6 +770,18 @@ document.querySelector("#reset-button").addEventListener("click", () => {
     const input = document.querySelector(id);
     input.value = value;
     input.dispatchEvent(new Event("input"));
+  }
+
+  for (const [input, value] of [
+    [numericInputs.x, "24"],
+    [numericInputs.y, "0"],
+    [numericInputs.z, "0"],
+    [numericInputs.roll, "0"],
+    [numericInputs.pitch, "0"],
+    [numericInputs.yaw, "0"],
+    [numericInputs.duration, "2"],
+  ]) {
+    input.value = value;
   }
 
   drone.position.set(0, droneHeight, 0);
@@ -485,7 +799,9 @@ document.querySelector("#reset-button").addEventListener("click", () => {
 
 const readouts = {
   x: document.querySelector("#x-value"),
+  y: document.querySelector("#y-value"),
   z: document.querySelector("#z-value"),
+  mode: document.querySelector("#mode-value"),
   droneSpeed: document.querySelector("#drone-speed-value"),
   acceleration: document.querySelector("#drone-acceleration-value"),
   windSpeed: document.querySelector("#estimated-wind-value"),
@@ -498,7 +814,9 @@ const readouts = {
 
 function updateReadouts() {
   readouts.x.textContent = `${drone.position.x.toFixed(2)} m`;
+  readouts.y.textContent = `${drone.position.y.toFixed(2)} m`;
   readouts.z.textContent = `${drone.position.z.toFixed(2)} m`;
+  readouts.mode.textContent = numericModeInput.checked ? "Numeric" : "Drag";
   readouts.droneSpeed.textContent = `${telemetry.speed.toFixed(2)} m/s`;
   readouts.acceleration.textContent = `${telemetry.accelerationMagnitude.toFixed(2)} m/s²`;
   readouts.windSpeed.textContent = `${telemetry.estimatedWindSpeed.toFixed(2)} m/s`;
@@ -531,10 +849,15 @@ const clock = new THREE.Clock();
 
 function animate() {
   requestAnimationFrame(animate);
-  const deltaTime = Math.min(clock.getDelta(), 0.1);
+  const rawDeltaTime = clock.getDelta();
+  const deltaTime = Math.min(rawDeltaTime, 0.1);
   const timeSeconds = clock.elapsedTime;
 
-  updateMotion(deltaTime);
+  if (numericModeInput.checked) {
+    updateProgrammedMotion(rawDeltaTime);
+  } else {
+    updateMotion(deltaTime);
+  }
   updatePhysicsEstimate(deltaTime);
   updateWindField(timeSeconds);
   updateReadouts();
