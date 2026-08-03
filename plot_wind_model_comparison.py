@@ -11,6 +11,10 @@ import pandas as pd
 
 ROOT = Path(__file__).resolve().parent
 
+# Change this value to the flight you want to graph, for example: "272".
+# Use None to automatically select the flight containing the most samples.
+FLIGHT_ID: str | None = "272"
+
 
 def physics_direction_from(u: np.ndarray, v: np.ndarray) -> np.ndarray:
     return np.mod(np.rad2deg(np.arctan2(-u, -v)), 360.0)
@@ -27,7 +31,11 @@ def select_flight(frame: pd.DataFrame, requested: str | None) -> pd.DataFrame:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--flight", help="Flight_ID; defaults to the flight with the most rows")
+    parser.add_argument(
+        "--flight",
+        default=FLIGHT_ID,
+        help="Flight_ID; defaults to FLIGHT_ID near the top of this file",
+    )
     parser.add_argument("--start", type=int, default=0, help="First row within the flight")
     parser.add_argument("--count", type=int, default=1500, help="Maximum rows to plot")
     parser.add_argument("--output", type=Path, default=ROOT / "wind_model_comparison.png")
