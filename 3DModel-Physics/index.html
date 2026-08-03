@@ -16,8 +16,8 @@
       <section class="panel" aria-label="Simulation controls">
         <div class="panel-heading">
           <div>
-            <p class="eyebrow">Hypothetical inverse physics</p>
-            <h1>What wind moved the drone?</h1>
+            <p class="eyebrow">Independent physics baseline</p>
+            <h1>Physics-only wind estimate</h1>
           </div>
           <button
             id="reset-button"
@@ -29,9 +29,8 @@
         </div>
 
         <p class="instructions">
-          Drag the drone to a new position. The vectors show one hypothetical
-          wind field that could explain the observed motion after accounting
-          for assumed thrust, gravity, and aerodynamic drag.
+          Select the paper-based identified baseline or inspect the older
+          inverse-drag demonstration. Neither model uses the trained ML model.
         </p>
 
         <div class="metrics" aria-live="polite">
@@ -62,7 +61,7 @@
         </div>
 
         <p>
-          Hypothetical wind:
+          Physics-predicted wind:
           <strong id="estimated-wind-value">0.00 m/s</strong>
         </p>
 
@@ -87,6 +86,20 @@
         </p>
         <div class="confidence-track">
           <div id="wind-confidence-bar"></div>
+        </div>
+
+        <label>
+          <span>Physics model</span>
+          <select id="physics-model">
+            <option value="identified" selected>Paper-based identified baseline</option>
+            <option value="inverse">Hypothetical inverse-drag model</option>
+          </select>
+        </label>
+
+        <div class="validation-card" aria-live="polite">
+          <span>Held-out measured error</span>
+          <strong id="validation-error">Loading…</strong>
+          <small id="validation-details"></small>
         </div>
 
         <label class="checkbox-row mode-toggle">
@@ -171,10 +184,8 @@
           </label>
         </fieldset>
 
-        <p class="note">
-          This is not a sensor reconstruction. Many forces can produce the same
-          trajectory; the display shows one solution under the assumptions in
-          <code>src/windModel.js</code>.
+        <p class="note" id="model-status">
+          Paper-based model loading. It is valid near hover and steady ascent.
         </p>
       </section>
 

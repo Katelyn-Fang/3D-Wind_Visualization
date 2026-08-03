@@ -1,6 +1,7 @@
 # Drone Wind-Vector Simulator
 
-A starter Three.js + Vite project for an interactive drone simulation.
+An interactive Three.js wind simulator that compares an independent identified
+physics baseline with a trained machine-learning wind estimator.
 
 ## Run it locally
 
@@ -51,7 +52,7 @@ The Python model stays outside the browser because `wind_model.joblib` is 5.2 GB
 Start the prediction service in a second terminal:
 
 ```bash
-python3 -m venv .venv
+python3.11 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements-ml.txt
 WIND_MODEL_PATH="$HOME/Downloads/wind_model.joblib" uvicorn ml_server:app --reload
@@ -60,6 +61,32 @@ WIND_MODEL_PATH="$HOME/Downloads/wind_model.joblib" uvicorn ml_server:app --relo
 Then run `npm run dev` in the first terminal and enable **Use trained ML wind
 model**. The first prediction can take several minutes and substantial memory
 while the artifact loads; subsequent predictions reuse the loaded model.
+
+## Independent physics baseline
+
+The physics baseline follows the identified, small-perturbation state-space
+approach in González-Rocha et al., *Wind Profiling in the Lower Atmosphere from
+Wind-Induced Perturbations to Multirotor UAS* (Sensors 2020, 20, 1341):
+https://doi.org/10.3390/s20051341
+
+It uses attitude, ground velocity, linear acceleration, and angular rate. The
+checked-in coefficients were fitted on non-test flights only. The physics and ML
+models do not consume each other's predictions. `physics_test_predictions.csv`
+and `test_predictions.csv` contain results for the same 54,548 samples from the
+same 42 held-out flights.
+
+To reproduce the physics fit after changing the raw data:
+
+```bash
+python ../fit_physics_baseline.py \
+  --flights /path/to/flights_primary.csv
+```
+
+Start `ml_server.py` to use measured replay and the comparison endpoint. In the
+browser, enable **Replay measured test samples**. The three arrows are measured
+(green), physics (orange), and ML (blue). Reported vector MAE includes both
+speed and direction. The identified physics model is intended for hover and
+steady ascent; aggressive flight is outside its validity envelope.
 
 ## Production build
 

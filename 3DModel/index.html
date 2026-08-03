@@ -87,7 +87,7 @@
         </p>
 
         <p>
-          Estimated wind:
+          <span id="prediction-label">Estimated wind</span>:
           <strong id="estimated-wind-value">
             0.00 m/s
           </strong>
@@ -213,12 +213,20 @@
           <span>Animate small gust changes</span>
         </label>
 
-        <label>
+        <label class="checkbox-row">
+          <input
+            id="use-physics-baseline"
+            type="checkbox"
+          />
+          <span>Use pure physics model</span>
+        </label>
+
+        <label class="checkbox-row">
           <input
             id="use-estimated-wind"
             type="checkbox"
           />
-          Use trained ML wind model
+          <span>Use trained ML wind model</span>
         </label>
 
         <label class="checkbox-row">
@@ -232,14 +240,14 @@
         </label>
 
         <p>
-          Demo reference wind:
+          <span id="reference-wind-label">Demo reference wind</span>:
           <strong id="reference-wind-value">
             0.00 m/s
           </strong>
         </p>
 
         <p>
-          Held-out measured wind error:
+          Independent held-out comparison:
           <strong id="wind-error-value">
             0.00 m/s
           </strong>
@@ -248,6 +256,12 @@
         <p class="note" id="ml-status">
           ML model is off. Demo wind controls are active.
         </p>
+
+        <div class="comparison-key" aria-label="Measured replay arrow colors">
+          <span><i class="key-swatch measured"></i>Measured</span>
+          <span><i class="key-swatch physics"></i>Physics</span>
+          <span><i class="key-swatch ml"></i>ML</span>
+        </div>
       </section>
 
       <div class="legend" aria-label="Wind vector legend">

@@ -10,6 +10,10 @@ import {
   createNumericMotionPlan,
   sampleNumericMotion,
 } from "./numericMotion.js";
+import {
+  inferIdentifiedWind,
+  IDENTIFIED_BASELINE,
+} from "./identifiedBaseline.js";
 
 const canvas = document.querySelector("#scene");
 const app = document.querySelector("#app");
@@ -72,6 +76,9 @@ const telemetry = {
   accelerationY: 0,
   accelerationZ: 0,
   accelerationMagnitude: 0,
+  angularRateX: 0,
+  angularRateY: 0,
+  angularRateZ: 0,
   estimatedWindX: 0,
   estimatedWindY: 0,
   estimatedWindZ: 0,
@@ -84,6 +91,10 @@ const telemetry = {
 };
 
 const params = {};
+const physicsModelInput = document.querySelector("#physics-model");
+const modelStatus = document.querySelector("#model-status");
+const validationError = document.querySelector("#validation-error");
+const validationDetails = document.querySelector("#validation-details");
 let droneHeight = telemetry.altitude;
 const DRAG_LIMIT = 9.5;
 
@@ -358,6 +369,9 @@ function resetKinematics() {
   telemetry.accelerationY = 0;
   telemetry.accelerationZ = 0;
   telemetry.accelerationMagnitude = 0;
+  telemetry.angularRateX = 0;
+  telemetry.angularRateY = 0;
+  telemetry.angularRateZ = 0;
   previousDronePosition.copy(drone.position);
 }
 
@@ -401,6 +415,15 @@ function updateProgrammedMotion(elapsedDelta) {
     sample.acceleration.y,
     sample.acceleration.z,
   );
+  telemetry.angularRateX = THREE.MathUtils.degToRad(
+    sample.angularVelocity.roll,
+  );
+  telemetry.angularRateY = THREE.MathUtils.degToRad(
+    sample.angularVelocity.pitch,
+  );
+  telemetry.angularRateZ = THREE.MathUtils.degToRad(
+    sample.angularVelocity.yaw,
+  );
 
   numericProgress.value = sample.progress;
   numericStatus.classList.remove("error");
@@ -421,9 +444,17 @@ function updateProgrammedMotion(elapsedDelta) {
 }
 
 function updatePhysicsEstimate(deltaTime) {
-  const estimate = inferWindFromMotion(telemetry);
+  const usingIdentifiedModel = physicsModelInput.value === "identified";
+  const estimate = usingIdentifiedModel
+    ? inferIdentifiedWind(telemetry)
+    : inferWindFromMotion(telemetry);
   targetWind.set(estimate.x, estimate.y, estimate.z);
-  let displayedForce = estimate.aerodynamicForce;
+  let displayedForce = estimate.aerodynamicForce ?? {
+    x: 0,
+    y: 0,
+    z: 0,
+    magnitude: 0,
+  };
   const numericMode = numericModeInput.checked;
 
   if (
@@ -442,7 +473,12 @@ function updatePhysicsEstimate(deltaTime) {
   // Releasing the pointer is not a physical braking maneuver. Decay the last
   // estimate instead of interpreting the synthetic velocity decay as a gust
   // in the opposite direction.
-  if (!numericMode && !dragging && !hasAttitudeDemand) {
+  if (
+    !usingIdentifiedModel &&
+    !numericMode &&
+    !dragging &&
+    !hasAttitudeDemand
+  ) {
     targetWind.set(0, 0, 0);
   }
 
@@ -465,7 +501,7 @@ function updatePhysicsEstimate(deltaTime) {
     ) {
       programmedMotion.peakForwardScore = forwardScore;
       programmedMotion.peakWind.copy(targetWind);
-      programmedMotion.peakForce = { ...estimate.aerodynamicForce };
+      programmedMotion.peakForce = { ...displayedForce };
     }
   }
 
@@ -474,7 +510,11 @@ function updatePhysicsEstimate(deltaTime) {
     hasAttitudeDemand ||
     programmedMotion.active ||
     programmedMotion.holdingResult;
-  const smoothingRate = hasDrivenInput ? 7 : 3;
+  const smoothingRate = usingIdentifiedModel
+    ? 5
+    : hasDrivenInput
+      ? 7
+      : 3;
   smoothedWind.lerp(targetWind, 1 - Math.exp(-smoothingRate * deltaTime));
 
   telemetry.estimatedWindX = smoothedWind.x;
@@ -493,11 +533,36 @@ function updatePhysicsEstimate(deltaTime) {
   );
   if (numericMode && programmedMotion.holdingResult) {
     telemetry.estimatedWindConfidence = 100;
+  } else if (usingIdentifiedModel) {
+    telemetry.estimatedWindConfidence = estimate.confidence;
   } else {
     telemetry.estimatedWindConfidence =
       hasDrivenInput ? 35 + signal * 65 : 0;
   }
+
+  if (usingIdentifiedModel) {
+    modelStatus.textContent =
+      `${estimate.validity}. Independent held-out vector MAE: ` +
+      `${IDENTIFIED_BASELINE.held_out_metrics.vector_mae_mps.toFixed(2)} m/s.`;
+    validationError.textContent =
+      `${IDENTIFIED_BASELINE.held_out_metrics.vector_mae_mps.toFixed(2)} m/s vector MAE`;
+    validationDetails.textContent =
+      `${IDENTIFIED_BASELINE.held_out_metrics.speed_mae_mps.toFixed(2)} m/s speed MAE · ` +
+      `${IDENTIFIED_BASELINE.held_out_metrics.direction_mae_deg.toFixed(1)}° direction MAE · ` +
+      `${IDENTIFIED_BASELINE.held_out_metrics.sample_count.toLocaleString()} samples from ` +
+      `${IDENTIFIED_BASELINE.held_out_flight_count} held-out flights`;
+  } else {
+    modelStatus.textContent =
+      "Hypothetical inverse-drag demonstration. Constants are not calibrated, so this mode is not used for accuracy scoring.";
+    validationError.textContent = "N/A — model is not calibrated";
+    validationDetails.textContent =
+      "The inverse-drag demonstration has no independent measured validation score.";
+  }
 }
+
+physicsModelInput.addEventListener("change", () => {
+  cancelNumericMotion("Physics model changed. Numeric result cleared.");
+});
 
 const raycaster = new THREE.Raycaster();
 const pointer = new THREE.Vector2();

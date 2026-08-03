@@ -194,6 +194,38 @@ input[type="number"] {
   font: inherit;
 }
 
+select {
+  width: 100%;
+  margin-top: 7px;
+  padding: 8px 10px;
+  border: 1px solid rgba(196, 225, 255, 0.25);
+  border-radius: 9px;
+  color: #eef6ff;
+  background: #102335;
+}
+
+.validation-card {
+  margin-top: 14px;
+  padding: 11px;
+  border: 1px solid rgba(196, 225, 255, 0.16);
+  border-radius: 12px;
+  background: rgba(84, 227, 142, 0.07);
+}
+
+.validation-card span,
+.validation-card small {
+  display: block;
+  color: #9fb2c3;
+  font-size: 0.76rem;
+  line-height: 1.4;
+}
+
+.validation-card strong {
+  display: block;
+  margin: 4px 0;
+  color: #eef6ff;
+}
+
 .checkbox-row {
   display: flex;
   align-items: center;

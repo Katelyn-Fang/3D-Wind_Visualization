@@ -32,6 +32,12 @@ MODEL_PATH = Path(
 VALIDATION_PATH = Path(
     os.environ.get("WIND_VALIDATION_PATH", str(PROJECT_ROOT / "test_predictions.csv"))
 ).expanduser()
+PHYSICS_VALIDATION_PATH = Path(
+    os.environ.get(
+        "WIND_PHYSICS_VALIDATION_PATH",
+        str(PROJECT_ROOT / "physics_test_predictions.csv"),
+    )
+).expanduser()
 
 app = FastAPI(title="Drone wind model API")
 app.add_middleware(
@@ -60,6 +66,7 @@ _load_lock = threading.Lock()
 _history: dict[str, list[dict[str, Any]]] = {}
 _validation_metrics: dict[str, float | int] | None = None
 _validation_frame: pd.DataFrame | None = None
+_physics_validation_frame: pd.DataFrame | None = None
 
 
 def get_validation_frame() -> pd.DataFrame:
@@ -74,6 +81,49 @@ def get_validation_frame() -> pd.DataFrame:
             subset=["Wind_speed", "Predicted_wind_speed", "Predicted_wind_angle"]
         ).reset_index(drop=True)
     return _validation_frame
+
+
+def get_physics_validation_frame() -> pd.DataFrame:
+    global _physics_validation_frame
+    if _physics_validation_frame is None:
+        if not PHYSICS_VALIDATION_PATH.is_file():
+            raise HTTPException(
+                status_code=404,
+                detail=f"Physics validation predictions not found: {PHYSICS_VALIDATION_PATH}",
+            )
+        frame = pd.read_csv(PHYSICS_VALIDATION_PATH)
+        if len(frame) != len(get_validation_frame()):
+            raise HTTPException(
+                status_code=500,
+                detail="Physics and ML validation files do not contain the same held-out rows",
+            )
+        _physics_validation_frame = frame
+    return _physics_validation_frame
+
+
+def wind_components(speed: np.ndarray, angle_deg: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    angle = np.deg2rad(angle_deg)
+    return -speed * np.sin(angle), -speed * np.cos(angle)
+
+
+def vector_metrics(pred_u: np.ndarray, pred_v: np.ndarray, true_u: np.ndarray, true_v: np.ndarray) -> dict[str, float]:
+    delta_u = pred_u - true_u
+    delta_v = pred_v - true_v
+    vector_error = np.hypot(delta_u, delta_v)
+    predicted_speed = np.hypot(pred_u, pred_v)
+    measured_speed = np.hypot(true_u, true_v)
+    speed_error = predicted_speed - measured_speed
+    dot = pred_u * true_u + pred_v * true_v
+    denominator = np.maximum(predicted_speed * measured_speed, 1e-9)
+    direction_error = np.rad2deg(np.arccos(np.clip(dot / denominator, -1, 1)))
+    reliable = (predicted_speed >= 0.2) & (measured_speed >= 1.0)
+    return {
+        "vector_mae_mps": float(np.mean(vector_error)),
+        "vector_rmse_mps": float(np.sqrt(np.mean(vector_error**2))),
+        "speed_mae_mps": float(np.mean(np.abs(speed_error))),
+        "speed_rmse_mps": float(np.sqrt(np.mean(speed_error**2))),
+        "direction_mae_deg": float(np.mean(direction_error[reliable])),
+    }
 
 
 def get_artifact() -> dict[str, Any]:
@@ -98,7 +148,7 @@ def health() -> dict[str, Any]:
 
 
 @app.get("/validation-metrics")
-def validation_metrics() -> dict[str, float | int]:
+def validation_metrics() -> dict[str, Any]:
     """Return held-out errors against the measured anemometer wind speed."""
     global _validation_metrics
     if _validation_metrics is not None:
@@ -120,6 +170,32 @@ def validation_metrics() -> dict[str, float | int]:
     return _validation_metrics
 
 
+@app.get("/comparison-metrics")
+def comparison_metrics() -> dict[str, Any]:
+    """Compare independent ML and physics predictions on identical test rows."""
+    ml = get_validation_frame()
+    physics = get_physics_validation_frame()
+    measured_u, measured_v = wind_components(
+        ml["Wind_speed"].to_numpy(float), ml["Wind_angle"].to_numpy(float)
+    )
+    ml_u, ml_v = wind_components(
+        ml["Predicted_wind_speed"].to_numpy(float),
+        ml["Predicted_wind_angle"].to_numpy(float),
+    )
+    return {
+        "sample_count": int(len(ml)),
+        "held_out_flight_count": int(ml["Flight_ID"].nunique()),
+        "ml": vector_metrics(ml_u, ml_v, measured_u, measured_v),
+        "physics": vector_metrics(
+            physics["Physics_u"].to_numpy(float),
+            physics["Physics_v"].to_numpy(float),
+            measured_u,
+            measured_v,
+        ),
+        "comparison_is_independent": True,
+    }
+
+
 @app.get("/validation-sample")
 def validation_sample(index: int = 0) -> dict[str, Any]:
     """Return one recorded test row with matched prediction and measurement."""
@@ -127,11 +203,14 @@ def validation_sample(index: int = 0) -> dict[str, Any]:
     if index < 0 or index >= len(frame):
         raise HTTPException(status_code=400, detail=f"index must be 0..{len(frame) - 1}")
     row = frame.iloc[index]
+    physics_row = get_physics_validation_frame().iloc[index]
     measured = float(row["Wind_speed"])
     predicted = max(float(row["Predicted_wind_speed"]), 0.0)
     angle = float(row["Predicted_wind_angle"])
     radians = np.deg2rad(angle)
     absolute_error = abs(predicted - measured)
+    physics_speed = float(physics_row["Physics_speed"])
+    physics_speed_error = abs(physics_speed - measured)
     return {
         "index": index,
         "sample_count": int(len(frame)),
@@ -146,6 +225,14 @@ def validation_sample(index: int = 0) -> dict[str, Any]:
         "u": float(-predicted * np.sin(radians)),
         "v": float(-predicted * np.cos(radians)),
         "w": 0.0,
+        "measured_u": float(-measured * np.sin(np.deg2rad(float(row["Wind_angle"])))),
+        "measured_v": float(-measured * np.cos(np.deg2rad(float(row["Wind_angle"])))),
+        "physics_u": float(physics_row["Physics_u"]),
+        "physics_v": float(physics_row["Physics_v"]),
+        "physics_speed": physics_speed,
+        "physics_speed_error": physics_speed_error,
+        "physics_speed_error_percent": physics_speed_error / measured * 100 if measured >= 0.1 else None,
+        "physics_vector_error": float(physics_row["Physics_vector_error"]),
     }
 
 

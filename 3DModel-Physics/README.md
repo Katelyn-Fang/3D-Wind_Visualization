@@ -1,15 +1,40 @@
-# Inverse-Physics Drone Wind Simulator
+# Physics-Only Drone Wind Simulator
+
+This application contains two independent physics baselines and never loads or
+calls the trained ML model.
+
+## Default: identified state-space baseline
+
+The default option follows the small-perturbation system-identification method
+described by González-Rocha et al., *Wind Profiling in the Lower Atmosphere from
+Wind-Induced Perturbations to Multirotor UAS* (Sensors 2020, 20, 1341):
+https://doi.org/10.3390/s20051341
+
+It uses attitude, velocity, acceleration, and angular-rate disturbances. Its
+coefficients were fitted on 167 flights and evaluated independently on 42 other
+flights (54,548 samples). The held-out 2D vector MAE is 2.39 m/s. It is intended
+for hover and steady ascent near the identified equilibrium condition.
+
+The error card in the simulator reports aggregate held-out measurements—not an
+error for the manually positioned on-screen drone, because that interactive
+state has no real anemometer measurement to use as ground truth.
+
+This is a calibrated, model-based baseline, not a first-principles aerodynamic
+model: measured training flights identify its coefficients, but no trained-ML
+prediction is used anywhere in its calculation.
+
+## Optional: inverse-drag demonstration
 
 This Three.js + Vite variant answers a deliberately hypothetical question:
 
 > Given the new position chosen by the user, what wind could have pushed the
 > drone through the observed motion?
 
-It does not use the repository's trained model, measured flight data, a
-prescribed ambient wind, or a user-selected wind direction. The existing
-`3DModel` folder remains unchanged.
+This option does not use measured flight data, a prescribed ambient wind, or a
+user-selected wind direction. It remains separate from the existing `3DModel`
+application.
 
-## Model
+### Inverse-drag model
 
 Each animation frame derives velocity and acceleration from the dragged drone
 position. The model then:
@@ -35,8 +60,7 @@ position. The model then:
 
 The constants are in `src/windModel.js`. They are plausible demonstration
 values, not calibration values for a specific aircraft. The inverse problem is
-not unique, so the result should be interpreted as one physically motivated
-explanation of the user's motion.
+not unique, so this option must not be reported as the accuracy baseline.
 
 ## Run locally
 

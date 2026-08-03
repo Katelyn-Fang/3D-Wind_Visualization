@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { inferWindFromMotion, PHYSICS } from "./windModel.js";
+import { inferIdentifiedWind } from "./identifiedBaseline.js";
 
 function telemetry(overrides = {}) {
   return {
@@ -51,4 +52,20 @@ test("inferred wind is capped for unstable pointer acceleration", () => {
   );
 
   assert.ok(result.speed <= PHYSICS.maximumWindSpeedMps + 1e-9);
+});
+
+test("identified baseline returns a finite horizontal vector", () => {
+  const result = inferIdentifiedWind(telemetry());
+  assert.ok(Number.isFinite(result.x));
+  assert.ok(Number.isFinite(result.z));
+  assert.equal(result.y, 0);
+  assert.ok(result.speed >= 0);
+});
+
+test("yaw rotates identified wind direction without changing its speed", () => {
+  const north = inferIdentifiedWind(telemetry({ yawDegrees: 0 }));
+  const east = inferIdentifiedWind(telemetry({ yawDegrees: 90 }));
+  assert.ok(Math.abs(north.speed - east.speed) < 1e-9);
+  assert.ok(Math.abs(north.x - east.z) < 1e-9);
+  assert.ok(Math.abs(north.z + east.x) < 1e-9);
 });
