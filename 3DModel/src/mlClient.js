@@ -15,7 +15,7 @@ export async function fetchMlWind(sample, signal) {
 }
 
 export async function fetchValidationMetrics(signal) {
-  const response = await fetch(`${API_URL}/validation-metrics`, { signal });
+  const response = await fetch(`${API_URL}/comparison-metrics`, { signal });
   if (!response.ok) {
     const message = await response.text();
     throw new Error(`Validation metrics ${response.status}: ${message}`);

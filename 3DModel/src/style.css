@@ -212,6 +212,31 @@ code {
   background: linear-gradient(90deg, #4296ff, #35d5a7, #f8d247, #ff5b51);
 }
 
+.comparison-key {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 10px;
+  font-size: 0.86rem;
+}
+
+.comparison-key span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.key-swatch {
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.key-swatch.measured { background: #54e38e; }
+.key-swatch.physics { background: #ffad42; }
+.key-swatch.ml { background: #4ebcff; }
+
 @media (max-width: 640px) {
   .panel {
     top: 10px;

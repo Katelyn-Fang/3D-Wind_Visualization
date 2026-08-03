@@ -9,8 +9,8 @@ import {
 import {
   predictWind, 
   estimateAerodynamicForce,
-  estimateWindFromDrag
 } from "./windModel.js";
+import { predictPhysicsWind } from "./physicsBaseline.js";
 
 import {
   loadWindDataset,
@@ -24,8 +24,10 @@ import {
 const canvas = document.querySelector("#scene");
 const app = document.querySelector("#app");
 const estimatedWindValue = document.querySelector("#estimated-wind-value");
+const predictionLabel = document.querySelector("#prediction-label");
 const estimatedWindComponents = document.querySelector("#estimated-wind-components"); 
 const referenceWindValue = document.querySelector("#reference-wind-value");
+const referenceWindLabel = document.querySelector("#reference-wind-label");
 const windErrorValue = document.querySelector("#wind-error-value");
 
 const scene = new THREE.Scene();
@@ -101,6 +103,7 @@ const params = {
   gradient: 0.18,
   animateWind: true,
   useEstimatedWind: false,
+  usePhysicsBaseline: false,
 };
 
 const telemetry = {
@@ -305,6 +308,16 @@ const localWindMarker = new THREE.ArrowHelper(
 );
 scene.add(localWindMarker);
 
+const comparisonMarkers = {
+  measured: new THREE.ArrowHelper(new THREE.Vector3(1, 0, 0), new THREE.Vector3(), 2, 0x54e38e, 0.42, 0.2),
+  physics: new THREE.ArrowHelper(new THREE.Vector3(1, 0, 0), new THREE.Vector3(), 2, 0xffad42, 0.42, 0.2),
+  ml: new THREE.ArrowHelper(new THREE.Vector3(1, 0, 0), new THREE.Vector3(), 2, 0x4ebcff, 0.42, 0.2),
+};
+for (const marker of Object.values(comparisonMarkers)) {
+  marker.visible = false;
+  scene.add(marker);
+}
+
 /**
  * Demonstration wind-field function.
  *
@@ -401,6 +414,7 @@ const color = new THREE.Color();
 const direction = new THREE.Vector3();
 const samplePosition = new THREE.Vector3();
 const mlVisualWind = new THREE.Vector3();
+const physicsVisualWind = new THREE.Vector3();
 
 function getVisualizedWind(sample, timeSeconds) {
   const activeWind = getActiveMlWind();
@@ -409,6 +423,13 @@ function getVisualizedWind(sample, timeSeconds) {
     // In ML mode, show that vector directly. Do not add rotor downwash,
     // drone disturbance, synthetic gusts, shear, or demo gradients.
     return mlVisualWind.set(activeWind.u, activeWind.w, activeWind.v);
+  }
+
+  if (params.usePhysicsBaseline) {
+    const physics = validationReplayInput?.checked && validationSample
+      ? { u: validationSample.physics_u, v: validationSample.physics_v, w: 0 }
+      : predictPhysicsWind(telemetry);
+    return physicsVisualWind.set(physics.u, physics.w, physics.v);
   }
 
   return predictWind(sample, drone.position, timeSeconds, params, telemetry);
@@ -472,6 +493,28 @@ function updateWindField(timeSeconds) {
     0.2,
   );
   localWindMarker.setColor(speedColor(localSpeed));
+
+  const comparisonActive = Boolean(validationReplayInput?.checked && validationSample);
+  localWindMarker.visible = !comparisonActive;
+  const comparisonVectors = comparisonActive
+    ? {
+        measured: new THREE.Vector3(validationSample.measured_u, 0, validationSample.measured_v),
+        physics: new THREE.Vector3(validationSample.physics_u, 0, validationSample.physics_v),
+        ml: new THREE.Vector3(validationSample.u, 0, validationSample.v),
+      }
+    : null;
+  let markerIndex = 0;
+  for (const [name, marker] of Object.entries(comparisonMarkers)) {
+    marker.visible = comparisonActive;
+    if (!comparisonActive) continue;
+    const vector = comparisonVectors[name];
+    const speed = vector.length();
+    marker.position.copy(drone.position);
+    marker.position.y += 1.25 + markerIndex * 0.32;
+    if (speed > 1e-6) marker.setDirection(vector.normalize());
+    marker.setLength(THREE.MathUtils.clamp(0.55 + speed * 0.45, 0.8, 4), 0.42, 0.2);
+    markerIndex += 1;
+  }
 
   updateReadout(localWind);
 }
@@ -541,6 +584,7 @@ const batteryCurrentInput = document.querySelector("#battery-current");
 const validationReplayInput = document.querySelector("#validation-replay");
 const validationSampleInput = document.querySelector("#validation-sample");
 const validationSampleOutput = document.querySelector("#validation-sample-output");
+const usePhysicsBaselineInput = document.querySelector("#use-physics-baseline");
 
 // The model was trained with GPS longitude, latitude, and altitude rather than
 // Three.js scene coordinates. Anchor the local simulator near a recorded-flight
@@ -1113,12 +1157,24 @@ function updateEstimatedWindMode() {
   params.useEstimatedWind =
     useEstimatedWindInput.checked;
 
+  if (params.useEstimatedWind) {
+    usePhysicsBaselineInput.checked = false;
+    params.usePhysicsBaseline = false;
+  }
+
   for (const input of document.querySelectorAll("[data-demo-wind-control]")) {
-    input.disabled = params.useEstimatedWind;
+    input.disabled = params.useEstimatedWind || params.usePhysicsBaseline;
   }
 
   if (params.useEstimatedWind && !validationMetrics && !validationMetricsError) {
     loadValidationMetrics();
+  }
+  if (predictionLabel) {
+    predictionLabel.textContent = params.useEstimatedWind
+      ? "ML predicted wind"
+      : params.usePhysicsBaseline
+        ? "Pure physics predicted wind"
+        : "Estimated wind";
   }
 }
 
@@ -1129,9 +1185,28 @@ useEstimatedWindInput.addEventListener(
 
 updateEstimatedWindMode();
 
+usePhysicsBaselineInput.addEventListener("change", () => {
+  params.usePhysicsBaseline = usePhysicsBaselineInput.checked;
+  if (params.usePhysicsBaseline) {
+    useEstimatedWindInput.checked = false;
+    params.useEstimatedWind = false;
+  }
+  for (const input of document.querySelectorAll("[data-demo-wind-control]")) {
+    input.disabled = params.usePhysicsBaseline || params.useEstimatedWind;
+  }
+  if (predictionLabel) {
+    predictionLabel.textContent = params.usePhysicsBaseline
+      ? "Pure physics predicted wind"
+      : "Estimated wind";
+  }
+});
+
 validationReplayInput.addEventListener("change", () => {
   validationSampleInput.disabled = !validationReplayInput.checked;
-  if (validationReplayInput.checked) loadValidationSample();
+  if (validationReplayInput.checked) {
+    loadValidationSample();
+    if (!validationMetrics && !validationMetricsError) loadValidationMetrics();
+  }
 });
 validationSampleInput.addEventListener("input", loadValidationSample);
 validationSampleInput.disabled = true;
@@ -1255,11 +1330,13 @@ function animate() {
   const aerodynamicForce =
     estimateAerodynamicForce(telemetry);
 
-  const rawWindEstimate =
-    estimateWindFromDrag(
-      telemetry,
-      aerodynamicForce
-    );
+  const physicsWind = predictPhysicsWind(telemetry);
+  const rawWindEstimate = {
+    x: physicsWind.u,
+    y: physicsWind.w,
+    z: physicsWind.v,
+    speed: physicsWind.speed,
+  };
 
   const windSmoothing =
     1 - Math.exp(-3 * deltaTime);
@@ -1318,7 +1395,7 @@ telemetry.referenceWindSpeed =
 
 // The slider-driven reference is a demo signal, not measured ground truth.
 // Never report it as model accuracy in ML mode.
-if (!params.useEstimatedWind) {
+  if (!params.useEstimatedWind && !params.usePhysicsBaseline) {
   telemetry.windEstimateError = smoothedEstimatedWind.distanceTo(referenceWind);
   telemetry.windEstimateErrorPercent = telemetry.referenceWindSpeed > 0.1
     ? (telemetry.windEstimateError / telemetry.referenceWindSpeed) * 100
@@ -1391,23 +1468,31 @@ if (!params.useEstimatedWind) {
   }
 
   if (referenceWindValue) {
-    referenceWindValue.textContent =
-      `${telemetry.referenceWindSpeed.toFixed(
-        2
-      )} m/s`;
+    const measuredReplayActive = validationReplayInput.checked && validationSample;
+    referenceWindValue.textContent = measuredReplayActive
+      ? `${validationSample.measured_speed.toFixed(2)} m/s`
+      : `${telemetry.referenceWindSpeed.toFixed(2)} m/s`;
+    if (referenceWindLabel) {
+      referenceWindLabel.textContent = measuredReplayActive
+        ? "Measured reference wind"
+        : "Demo reference wind";
+    }
   }
 
   if (windErrorValue) {
-    if (params.useEstimatedWind) {
-      windErrorValue.textContent = validationReplayInput.checked && validationSample
-        ? `${validationSample.speed_error.toFixed(2)} m/s ` +
-          `(${validationSample.speed_error_percent?.toFixed(0) ?? "N/A"}%) — ` +
-          `predicted ${validationSample.predicted_speed.toFixed(2)}, ` +
-          `measured ${validationSample.measured_speed.toFixed(2)} m/s`
+    if (params.useEstimatedWind || params.usePhysicsBaseline) {
+      windErrorValue.textContent = params.usePhysicsBaseline && !validationReplayInput.checked
+        ? "Enable measured replay to compare accuracy"
+        : validationReplayInput.checked && validationSample
+        ? params.usePhysicsBaseline
+          ? `${validationSample.physics_vector_error.toFixed(2)} m/s vector error — ` +
+            `physics ${validationSample.physics_speed.toFixed(2)}, measured ${validationSample.measured_speed.toFixed(2)} m/s`
+          : `${validationSample.speed_error.toFixed(2)} m/s speed error — ` +
+            `ML ${validationSample.predicted_speed.toFixed(2)}, measured ${validationSample.measured_speed.toFixed(2)} m/s`
         : validationMetrics
-        ? `${validationMetrics.speed_mae_mps.toFixed(2)} m/s MAE ` +
-          `(${validationMetrics.speed_mape_percent.toFixed(0)}% MAPE, ` +
-          `${validationMetrics.sample_count.toLocaleString()} measured test samples)`
+        ? `Physics ${validationMetrics.physics.vector_mae_mps.toFixed(2)} vs ` +
+          `ML ${validationMetrics.ml.vector_mae_mps.toFixed(2)} m/s vector MAE ` +
+          `(${validationMetrics.sample_count.toLocaleString()} identical test samples)`
         : validationMetricsError
           ? "Measured validation data unavailable"
           : "Loading measured validation error…";
@@ -1420,8 +1505,10 @@ if (!params.useEstimatedWind) {
 
   const mlStatus = document.querySelector("#ml-status");
   if (mlStatus) {
-    mlStatus.textContent = !params.useEstimatedWind
-      ? "ML model is off. Demo wind controls are active."
+    mlStatus.textContent = params.usePhysicsBaseline
+      ? "Independent identified physics baseline active. It is fitted only on non-test flights and is not combined with ML."
+      : !params.useEstimatedWind
+      ? "Both comparison models are off. Demo wind controls are active."
       : validationReplayInput.checked
         ? validationSampleError
           ? `Measured replay failed: ${validationSampleError}`
