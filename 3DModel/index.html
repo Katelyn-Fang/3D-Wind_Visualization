@@ -221,6 +221,16 @@
           Use trained ML wind model
         </label>
 
+        <label class="checkbox-row">
+          <input id="validation-replay" type="checkbox" />
+          <span>Replay measured test samples</span>
+        </label>
+
+        <label>
+          <span>Measured test sample <output id="validation-sample-output">1</output></span>
+          <input id="validation-sample" type="range" min="0" max="54547" step="1" value="0" />
+        </label>
+
         <p>
           Demo reference wind:
           <strong id="reference-wind-value">

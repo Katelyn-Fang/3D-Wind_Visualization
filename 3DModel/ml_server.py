@@ -59,6 +59,21 @@ _artifact: dict[str, Any] | None = None
 _load_lock = threading.Lock()
 _history: dict[str, list[dict[str, Any]]] = {}
 _validation_metrics: dict[str, float | int] | None = None
+_validation_frame: pd.DataFrame | None = None
+
+
+def get_validation_frame() -> pd.DataFrame:
+    global _validation_frame
+    if _validation_frame is None:
+        if not VALIDATION_PATH.is_file():
+            raise HTTPException(
+                status_code=404,
+                detail=f"Validation predictions not found: {VALIDATION_PATH}",
+            )
+        _validation_frame = pd.read_csv(VALIDATION_PATH).dropna(
+            subset=["Wind_speed", "Predicted_wind_speed", "Predicted_wind_angle"]
+        ).reset_index(drop=True)
+    return _validation_frame
 
 
 def get_artifact() -> dict[str, Any]:
@@ -88,16 +103,7 @@ def validation_metrics() -> dict[str, float | int]:
     global _validation_metrics
     if _validation_metrics is not None:
         return _validation_metrics
-    if not VALIDATION_PATH.is_file():
-        raise HTTPException(
-            status_code=404,
-            detail=f"Validation predictions not found: {VALIDATION_PATH}",
-        )
-
-    frame = pd.read_csv(
-        VALIDATION_PATH,
-        usecols=["Wind_speed", "Predicted_wind_speed"],
-    ).dropna()
+    frame = get_validation_frame()
     measured = frame["Wind_speed"].to_numpy(dtype=float)
     predicted = frame["Predicted_wind_speed"].to_numpy(dtype=float)
     absolute_error = np.abs(predicted - measured)
@@ -112,6 +118,35 @@ def validation_metrics() -> dict[str, float | int]:
         ),
     }
     return _validation_metrics
+
+
+@app.get("/validation-sample")
+def validation_sample(index: int = 0) -> dict[str, Any]:
+    """Return one recorded test row with matched prediction and measurement."""
+    frame = get_validation_frame()
+    if index < 0 or index >= len(frame):
+        raise HTTPException(status_code=400, detail=f"index must be 0..{len(frame) - 1}")
+    row = frame.iloc[index]
+    measured = float(row["Wind_speed"])
+    predicted = max(float(row["Predicted_wind_speed"]), 0.0)
+    angle = float(row["Predicted_wind_angle"])
+    radians = np.deg2rad(angle)
+    absolute_error = abs(predicted - measured)
+    return {
+        "index": index,
+        "sample_count": int(len(frame)),
+        "flight_id": str(row.get("Flight_ID", "")),
+        "measured_speed": measured,
+        "predicted_speed": predicted,
+        "speed_error": absolute_error,
+        "speed_error_percent": absolute_error / measured * 100 if measured >= 0.1 else None,
+        "direction_from_deg": angle,
+        "direction_confidence": 1.0,
+        "speed": predicted,
+        "u": float(-predicted * np.sin(radians)),
+        "v": float(-predicted * np.cos(radians)),
+        "w": 0.0,
+    }
 
 
 @app.post("/predict")
