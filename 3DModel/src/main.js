@@ -1486,6 +1486,9 @@ telemetry.referenceWindSpeed =
         : validationReplayInput.checked && validationSample
         ? params.usePhysicsBaseline
           ? `${validationSample.physics_vector_error.toFixed(2)} m/s vector error — ` +
+            `${validationSample.physics_speed_error_percent == null
+              ? "physics speed error N/A"
+              : `${validationSample.physics_speed_error_percent.toFixed(0)}% physics speed error`} — ` +
             `physics ${validationSample.physics_speed.toFixed(2)}, measured ${validationSample.measured_speed.toFixed(2)} m/s`
           : `${validationSample.speed_error.toFixed(2)} m/s speed error — ` +
             `ML ${validationSample.predicted_speed.toFixed(2)}, measured ${validationSample.measured_speed.toFixed(2)} m/s`

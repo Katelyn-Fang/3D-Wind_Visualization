@@ -209,6 +209,8 @@ def validation_sample(index: int = 0) -> dict[str, Any]:
     angle = float(row["Predicted_wind_angle"])
     radians = np.deg2rad(angle)
     absolute_error = abs(predicted - measured)
+    physics_speed = float(physics_row["Physics_speed"])
+    physics_speed_error = abs(physics_speed - measured)
     return {
         "index": index,
         "sample_count": int(len(frame)),
@@ -227,7 +229,9 @@ def validation_sample(index: int = 0) -> dict[str, Any]:
         "measured_v": float(-measured * np.cos(np.deg2rad(float(row["Wind_angle"])))),
         "physics_u": float(physics_row["Physics_u"]),
         "physics_v": float(physics_row["Physics_v"]),
-        "physics_speed": float(physics_row["Physics_speed"]),
+        "physics_speed": physics_speed,
+        "physics_speed_error": physics_speed_error,
+        "physics_speed_error_percent": physics_speed_error / measured * 100 if measured >= 0.1 else None,
         "physics_vector_error": float(physics_row["Physics_vector_error"]),
     }
 
