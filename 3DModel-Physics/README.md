@@ -15,6 +15,10 @@ coefficients were fitted on 167 flights and evaluated independently on 42 other
 flights (54,548 samples). The held-out 2D vector MAE is 2.39 m/s. It is intended
 for hover and steady ascent near the identified equilibrium condition.
 
+The error card in the simulator reports aggregate held-out measurements—not an
+error for the manually positioned on-screen drone, because that interactive
+state has no real anemometer measurement to use as ground truth.
+
 This is a calibrated, model-based baseline, not a first-principles aerodynamic
 model: measured training flights identify its coefficients, but no trained-ML
 prediction is used anywhere in its calculation.

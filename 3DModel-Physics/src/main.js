@@ -84,6 +84,8 @@ const telemetry = {
 const params = {};
 const physicsModelInput = document.querySelector("#physics-model");
 const modelStatus = document.querySelector("#model-status");
+const validationError = document.querySelector("#validation-error");
+const validationDetails = document.querySelector("#validation-details");
 let droneHeight = telemetry.altitude;
 const DRAG_LIMIT = 9.5;
 
@@ -350,6 +352,13 @@ function updatePhysicsEstimate(deltaTime) {
     modelStatus.textContent =
       `${estimate.validity}. Independent held-out vector MAE: ` +
       `${IDENTIFIED_BASELINE.held_out_metrics.vector_mae_mps.toFixed(2)} m/s.`;
+    validationError.textContent =
+      `${IDENTIFIED_BASELINE.held_out_metrics.vector_mae_mps.toFixed(2)} m/s vector MAE`;
+    validationDetails.textContent =
+      `${IDENTIFIED_BASELINE.held_out_metrics.speed_mae_mps.toFixed(2)} m/s speed MAE · ` +
+      `${IDENTIFIED_BASELINE.held_out_metrics.direction_mae_deg.toFixed(1)}° direction MAE · ` +
+      `${IDENTIFIED_BASELINE.held_out_metrics.sample_count.toLocaleString()} samples from ` +
+      `${IDENTIFIED_BASELINE.held_out_flight_count} held-out flights`;
     return;
   }
 
@@ -388,6 +397,9 @@ function updatePhysicsEstimate(deltaTime) {
     dragging || hasAttitudeDemand ? 35 + signal * 65 : 0;
   modelStatus.textContent =
     "Hypothetical inverse-drag demonstration. Constants are not calibrated, so this mode is not used for accuracy scoring.";
+  validationError.textContent = "N/A — model is not calibrated";
+  validationDetails.textContent =
+    "The inverse-drag demonstration has no independent measured validation score.";
 }
 
 physicsModelInput.addEventListener("change", () => {
