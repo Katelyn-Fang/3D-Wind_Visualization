@@ -19,7 +19,12 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 MODEL_PIPELINE_ROOT = PROJECT_ROOT / "wind_ml_pipeline_12_models"
 sys.path.insert(0, str(PROJECT_ROOT))
 sys.path.insert(0, str(MODEL_PIPELINE_ROOT))
-from train_wind_model_v2_1 import add_engineered_features, vectors_to_angle_deg  # noqa: E402
+from src.wind_core import (  # noqa: E402
+    add_engineered_features,
+    modeled_to_absolute_angle,
+    vectors_to_angle_deg,
+    yaw_to_heading_deg,
+)
 
 MODEL_PATH = Path(
     os.environ.get("WIND_MODEL_PATH", str(Path.home() / "Downloads" / "wind_model.joblib"))
@@ -96,12 +101,31 @@ def predict(sample: Telemetry) -> dict[str, float]:
     })
     del rows[:-120]
 
-    engineered, _, _ = add_engineered_features(pd.DataFrame(rows))
+    engineered, _, _ = add_engineered_features(
+        pd.DataFrame(rows), attitude_angle_unit="radians"
+    )
     features = artifact["feature_columns"]
     latest = engineered[features].tail(1)
     speed = max(float(artifact["speed_model"].predict(latest)[0]), 0.0)
     direction_vector = artifact["direction_model"].predict(latest)
-    direction_from_deg = float(vectors_to_angle_deg(np.asarray(direction_vector))[0])
+    modeled_direction_deg = vectors_to_angle_deg(np.asarray(direction_vector))
+    training_arguments = artifact.get("training_arguments", {})
+    direction_target = training_arguments.get("direction_target", "absolute")
+    if direction_target == "relative_yaw":
+        yaw_heading = yaw_to_heading_deg(
+            engineered.tail(1)["Yaw"].to_numpy(),
+            "radians",
+            training_arguments.get("yaw_transform", "clockwise_from_north"),
+        )
+    else:
+        yaw_heading = None
+    direction_from_deg = float(
+        modeled_to_absolute_angle(
+            modeled_direction_deg,
+            direction_target,
+            yaw_heading,
+        )[0]
+    )
 
     # Meteorological direction is where wind comes from; u/v point where it goes.
     angle = np.deg2rad(direction_from_deg)
