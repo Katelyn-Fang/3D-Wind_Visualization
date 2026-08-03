@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="Inverse-physics visualization of the hypothetical wind required to move a drone."
+    />
+    <title>Inverse-Physics Drone Wind Simulator</title>
+  </head>
+  <body>
+    <main id="app">
+      <canvas id="scene" aria-label="Interactive inverse-physics drone wind simulation"></canvas>
+
+      <section class="panel" aria-label="Simulation controls">
+        <div class="panel-heading">
+          <div>
+            <p class="eyebrow">Hypothetical inverse physics</p>
+            <h1>What wind moved the drone?</h1>
+          </div>
+          <button id="reset-button" type="button">Reset</button>
+        </div>
+
+        <p class="instructions">
+          Drag the drone to a new position. The vectors show one hypothetical
+          wind field that could explain the observed motion after accounting
+          for assumed thrust, gravity, and aerodynamic drag.
+        </p>
+
+        <div class="metrics" aria-live="polite">
+          <div>
+            <span>East x</span>
+            <strong id="x-value">0.00 m</strong>
+          </div>
+          <div>
+            <span>North z</span>
+            <strong id="z-value">0.00 m</strong>
+          </div>
+          <div>
+            <span>Drone speed</span>
+            <strong id="drone-speed-value">0.00 m/s</strong>
+          </div>
+          <div>
+            <span>Acceleration</span>
+            <strong id="drone-acceleration-value">0.00 m/s²</strong>
+          </div>
+        </div>
+
+        <p>
+          Hypothetical wind:
+          <strong id="estimated-wind-value">0.00 m/s</strong>
+        </p>
+
+        <p>
+          Wind components:
+          <span id="estimated-wind-components">u: 0.00, v: 0.00, w: 0.00 m/s</span>
+        </p>
+
+        <p>
+          Required aerodynamic force:
+          <strong id="aerodynamic-force-value">0.00 N</strong>
+        </p>
+
+        <p>
+          Force components:
+          <span id="aerodynamic-force-components">Fx: 0.00, Fy: 0.00, Fz: 0.00 N</span>
+        </p>
+
+        <p>
+          Motion-signal strength:
+          <strong id="wind-confidence-value">0%</strong>
+        </p>
+        <div class="confidence-track">
+          <div id="wind-confidence-bar"></div>
+        </div>
+
+        <label>
+          <span>Drone altitude <output id="altitude-output">1.35 m</output></span>
+          <input id="altitude" type="range" min="0.5" max="6" step="0.05" value="1.35" />
+        </label>
+
+        <label>
+          <span>Drone heading <output id="yaw-output">0°</output></span>
+          <input id="yaw" type="range" min="-180" max="180" step="1" value="0" />
+        </label>
+
+        <label>
+          <span>Drone pitch <output id="pitch-output">0°</output></span>
+          <input id="pitch" type="range" min="-30" max="30" step="1" value="0" />
+        </label>
+
+        <label>
+          <span>Drone roll <output id="roll-output">0°</output></span>
+          <input id="roll" type="range" min="-30" max="30" step="1" value="0" />
+        </label>
+
+        <p class="note">
+          This is not a sensor reconstruction. Many forces can produce the same
+          trajectory; the display shows one solution under the assumptions in
+          <code>src/windModel.js</code>.
+        </p>
+      </section>
+
+      <div class="legend" aria-label="Wind vector legend">
+        <span>Slower</span>
+        <div class="legend-gradient"></div>
+        <span>Faster</span>
+      </div>
+    </main>
+
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
