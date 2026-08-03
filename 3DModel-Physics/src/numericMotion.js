@@ -127,3 +127,46 @@ export function sampleNumericMotion(plan, elapsedSeconds) {
     angularAcceleration,
   };
 }
+
+/**
+ * Keep the strongest wind that has acted in the requested travel direction.
+ * The second half of a minimum-jerk trajectory contains braking acceleration;
+ * attributing that braking to wind would reverse the displayed field. Instead,
+ * the vehicle controller is assumed to brake while the driving wind remains
+ * continuous.
+ */
+export function retainStrongestForwardWind({
+  currentWind,
+  travelDirection,
+  previousWind = { x: 0, y: 0, z: 0 },
+  previousScore = -Infinity,
+  minimumSpeed = 0.02,
+}) {
+  const current = copyVector(currentWind, "Current wind");
+  const travel = copyVector(travelDirection, "Travel direction");
+  const previous = copyVector(previousWind, "Previous wind");
+  const travelMagnitude = Math.hypot(travel.x, travel.y, travel.z);
+  const currentSpeed = Math.hypot(current.x, current.y, current.z);
+  const previousSpeed = Math.hypot(previous.x, previous.y, previous.z);
+
+  const forwardScore = travelMagnitude > 1e-12
+    ? (
+        current.x * travel.x +
+        current.y * travel.y +
+        current.z * travel.z
+      ) / travelMagnitude
+    : currentSpeed;
+  const pointsForward = travelMagnitude <= 1e-12 || forwardScore > 0;
+  const updated =
+    currentSpeed >= minimumSpeed &&
+    pointsForward &&
+    forwardScore > previousScore;
+
+  if (updated) {
+    return { wind: current, score: forwardScore, updated: true };
+  }
+  if (previousSpeed >= minimumSpeed) {
+    return { wind: previous, score: previousScore, updated: false };
+  }
+  return { wind: current, score: previousScore, updated: false };
+}

@@ -8,6 +8,7 @@ import {
 } from "./windModel.js";
 import {
   createNumericMotionPlan,
+  retainStrongestForwardWind,
   sampleNumericMotion,
 } from "./numericMotion.js";
 import {
@@ -492,17 +493,26 @@ function updatePhysicsEstimate(deltaTime) {
   }
 
   if (numericMode && programmedMotion.active) {
-    const forwardScore = programmedMotion.travelDirection.lengthSq() > 0
-      ? targetWind.dot(programmedMotion.travelDirection)
-      : targetWind.length();
+    const retained = retainStrongestForwardWind({
+      currentWind: targetWind,
+      travelDirection: programmedMotion.travelDirection,
+      previousWind: programmedMotion.peakWind,
+      previousScore: programmedMotion.peakForwardScore,
+    });
 
-    if (
-      forwardScore > programmedMotion.peakForwardScore &&
-      targetWind.lengthSq() > 0.0004
-    ) {
-      programmedMotion.peakForwardScore = forwardScore;
-      programmedMotion.peakWind.copy(targetWind);
+    if (retained.updated) {
+      programmedMotion.peakForwardScore = retained.score;
+      programmedMotion.peakWind.set(
+        retained.wind.x,
+        retained.wind.y,
+        retained.wind.z,
+      );
       programmedMotion.peakForce = { ...displayedForce };
+    }
+
+    if (programmedMotion.peakWind.lengthSq() > 0) {
+      targetWind.copy(programmedMotion.peakWind);
+      displayedForce = programmedMotion.peakForce;
     }
   }
 
@@ -814,6 +824,7 @@ function updateInputMode() {
   const numericMode = numericModeInput.checked;
   dragging = false;
   orbitControls.enabled = true;
+  params.steadyDirection = numericMode;
 
   if (numericMode) {
     modelBeforeNumericMode = physicsModelInput.value;
