@@ -71,6 +71,19 @@ npm run dev
 
 Open the URL printed by Vite, then drag the drone across the grid.
 
+## Numeric motion mode
+
+Enable **Use numeric motion inputs** to replace mouse dragging with a scripted
+relative movement. Enter `x`, `y`, and `z` offsets in inches, attitude offsets
+in degrees, and a duration in seconds. The simulator animates a minimum-jerk
+trajectory from the current pose to the requested pose.
+
+Because the trajectory supplies analytic velocity and acceleration, the
+inverse model responds predictably to the inputs: doubling the distance doubles
+the trajectory's velocity and acceleration, while doubling the duration halves
+velocity and reduces acceleration to one quarter. The strongest forward wind
+estimate is held after arrival so the result can be inspected.
+
 ## Validate
 
 ```bash

@@ -11,6 +11,10 @@
   box-sizing: border-box;
 }
 
+[hidden] {
+  display: none !important;
+}
+
 html,
 body,
 #app {
@@ -154,6 +158,13 @@ label:not(.checkbox-row) {
   margin-top: 13px;
 }
 
+fieldset {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
 label > span {
   display: flex;
   justify-content: space-between;
@@ -170,6 +181,17 @@ input[type="range"] {
   width: 100%;
   margin-top: 7px;
   accent-color: #52b9f5;
+}
+
+input[type="number"] {
+  width: 100%;
+  margin-top: 6px;
+  border: 1px solid rgba(196, 225, 255, 0.22);
+  border-radius: 9px;
+  padding: 8px 9px;
+  color: #eef6ff;
+  background: rgba(255, 255, 255, 0.07);
+  font: inherit;
 }
 
 select {
@@ -217,6 +239,69 @@ select {
   accent-color: #52b9f5;
 }
 
+.mode-toggle {
+  padding: 10px;
+  border: 1px solid rgba(115, 199, 255, 0.24);
+  border-radius: 12px;
+  background: rgba(66, 163, 226, 0.08);
+}
+
+.numeric-controls {
+  margin-top: 12px;
+  padding: 12px;
+  border: 1px solid rgba(115, 199, 255, 0.2);
+  border-radius: 14px;
+  background: rgba(14, 43, 65, 0.55);
+}
+
+.numeric-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 9px;
+}
+
+.numeric-grid label {
+  margin-top: 0 !important;
+}
+
+.numeric-grid label > span {
+  display: block;
+}
+
+.duration-input {
+  grid-column: 1 / -1;
+}
+
+.numeric-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.numeric-actions button:first-child {
+  border-color: rgba(115, 199, 255, 0.55);
+  background: rgba(66, 163, 226, 0.2);
+}
+
+.numeric-controls progress {
+  width: 100%;
+  height: 9px;
+  margin-top: 12px;
+  accent-color: #52b9f5;
+}
+
+.numeric-status {
+  min-height: 1.2em;
+  margin: 6px 0 0;
+  color: #b9dff7;
+  font-size: 0.78rem;
+  line-height: 1.4;
+}
+
+.numeric-status.error {
+  color: #ff9b91;
+}
+
 code {
   color: #9ed8ff;
 }
@@ -257,6 +342,14 @@ code {
   .legend {
     right: 10px;
     bottom: 10px;
+  }
+
+  .numeric-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .duration-input {
+    grid-column: auto;
   }
 }
 
