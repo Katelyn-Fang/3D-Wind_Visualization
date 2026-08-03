@@ -60,7 +60,7 @@
         </p>
 
         <p>
-          Wind-estimate reliability:
+          Direction-vector strength:
           <strong id="wind-confidence-value">0%</strong>
         </p>
 
@@ -76,7 +76,7 @@
 
         <label>
           <span>Base wind speed <output id="base-output">2.5 m/s</output></span>
-          <input id="base-speed" type="range" min="0.5" max="6" step="0.1" value="2.5" />
+          <input id="base-speed" data-demo-wind-control type="range" min="0.5" max="6" step="0.1" value="2.5" />
         </label>
 
         <p>
@@ -87,7 +87,7 @@
         </p>
 
         <p>
-          Physics-estimated wind:
+          Estimated wind:
           <strong id="estimated-wind-value">
             0.00 m/s
           </strong>
@@ -115,6 +115,7 @@
 
           <input
             id="wind-direction"
+            data-demo-wind-control
             type="range"
             min="0"
             max="359"
@@ -125,12 +126,12 @@
 
         <label>
           <span>Drone disturbance <output id="turbulence-output">1.2</output></span>
-          <input id="turbulence" type="range" min="0" max="3" step="0.1" value="1.2" />
+          <input id="turbulence" data-demo-wind-control type="range" min="0" max="3" step="0.1" value="1.2" />
         </label>
 
         <label>
           <span>Horizontal wind gradient <output id="gradient-output">0.18</output></span>
-          <input id="gradient" type="range" min="0" max="0.5" step="0.01" value="0.18" />
+          <input id="gradient" data-demo-wind-control type="range" min="0" max="0.5" step="0.01" value="0.18" />
         </label>
 
         <label>
@@ -197,8 +198,18 @@
         />
       </label>
 
+      <label>
+        <span>Battery voltage <output id="battery-voltage-output">15.2 V</output></span>
+        <input id="battery-voltage" type="range" min="10" max="17" step="0.1" value="15.2" />
+      </label>
+
+      <label>
+        <span>Battery current <output id="battery-current-output">4.0 A</output></span>
+        <input id="battery-current" type="range" min="0" max="30" step="0.1" value="4" />
+      </label>
+
         <label class="checkbox-row">
-          <input id="animate-wind" type="checkbox" checked />
+          <input id="animate-wind" data-demo-wind-control type="checkbox" checked />
           <span>Animate small gust changes</span>
         </label>
 
@@ -210,23 +221,32 @@
           Use trained ML wind model
         </label>
 
+        <label class="checkbox-row">
+          <input id="validation-replay" type="checkbox" />
+          <span>Replay measured test samples</span>
+        </label>
+
+        <label>
+          <span>Measured test sample <output id="validation-sample-output">1</output></span>
+          <input id="validation-sample" type="range" min="0" max="54547" step="1" value="0" />
+        </label>
+
         <p>
-          Simulated reference wind:
+          Demo reference wind:
           <strong id="reference-wind-value">
             0.00 m/s
           </strong>
         </p>
 
         <p>
-          Wind-estimation error:
+          Held-out measured wind error:
           <strong id="wind-error-value">
             0.00 m/s
           </strong>
         </p>
 
-        <p class="note">
-          Start the local ML service before enabling the trained model. The first
-          prediction may take time while the 5.2 GB artifact loads.
+        <p class="note" id="ml-status">
+          ML model is off. Demo wind controls are active.
         </p>
       </section>
 

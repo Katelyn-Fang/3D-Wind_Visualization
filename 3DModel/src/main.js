@@ -1,7 +1,11 @@
 import * as THREE from "three";
 import {OrbitControls} from "three/addons/controls/OrbitControls.js";
 import "./style.css";
-import { fetchMlWind } from "./mlClient.js";
+import {
+  fetchMlWind,
+  fetchValidationMetrics,
+  fetchValidationSample,
+} from "./mlClient.js";
 import {
   predictWind, 
   estimateAerodynamicForce,
@@ -396,6 +400,19 @@ scene.add(localWindMarker);
 const color = new THREE.Color();
 const direction = new THREE.Vector3();
 const samplePosition = new THREE.Vector3();
+const mlVisualWind = new THREE.Vector3();
+
+function getVisualizedWind(sample, timeSeconds) {
+  const activeWind = getActiveMlWind();
+  if (params.useEstimatedWind && activeWind) {
+    // The trained model estimates ambient 2D wind from drone telemetry.
+    // In ML mode, show that vector directly. Do not add rotor downwash,
+    // drone disturbance, synthetic gusts, shear, or demo gradients.
+    return mlVisualWind.set(activeWind.u, activeWind.w, activeWind.v);
+  }
+
+  return predictWind(sample, drone.position, timeSeconds, params, telemetry);
+}
 
 function speedColor(speed) {
   const normalized = THREE.MathUtils.clamp((speed - 0.5) / 7, 0, 1);
@@ -417,13 +434,7 @@ function updateWindField(timeSeconds) {
   for (const sample of arrowSamples) {
     samplePosition.copy(drone.position).add(sample.localOffset);
 
-    const wind = predictWind(
-      samplePosition, 
-      drone.position, 
-      timeSeconds,
-      params,
-      telemetry
-    );
+    const wind = getVisualizedWind(samplePosition, timeSeconds);
     const speed = wind.length();
 
     direction.copy(wind).normalize();
@@ -449,13 +460,7 @@ function updateWindField(timeSeconds) {
       estimatedWindOpacity;
   }
 
-  const localWind = predictWind(
-    drone.position, 
-    drone.position, 
-    timeSeconds,
-    params,
-    telemetry
-  );
+  const localWind = getVisualizedWind(drone.position, timeSeconds);
   const localSpeed = localWind.length();
 
   localWindMarker.position.copy(drone.position);
@@ -524,32 +529,100 @@ const referenceWindVector = new THREE.Vector3();
 let latestMlWind = null;
 let mlRequestInFlight = false;
 let lastMlRequestSeconds = -Infinity;
+let lastMlError = null;
+let validationMetrics = null;
+let validationMetricsError = null;
+let validationSample = null;
+let validationSampleError = null;
+let validationRequestSequence = 0;
 const mlSessionId = `vite-${Date.now()}`;
+const batteryVoltageInput = document.querySelector("#battery-voltage");
+const batteryCurrentInput = document.querySelector("#battery-current");
+const validationReplayInput = document.querySelector("#validation-replay");
+const validationSampleInput = document.querySelector("#validation-sample");
+const validationSampleOutput = document.querySelector("#validation-sample-output");
+
+// The model was trained with GPS longitude, latitude, and altitude rather than
+// Three.js scene coordinates. Anchor the local simulator near a recorded-flight
+// origin and convert its east/north offsets from metres into GPS degrees.
+const modelCoordinateOrigin = {
+  longitude: -79.7826006916051,
+  latitude: 40.45836389714015,
+  altitudeM: 267.1844462604522,
+};
+
+function droneModelCoordinates() {
+  const latitudeRadians = THREE.MathUtils.degToRad(modelCoordinateOrigin.latitude);
+  return {
+    x: modelCoordinateOrigin.longitude +
+      drone.position.x / (111_320 * Math.cos(latitudeRadians)),
+    y: modelCoordinateOrigin.latitude + drone.position.z / 111_320,
+    z: modelCoordinateOrigin.altitudeM + drone.position.y,
+  };
+}
+
+function getActiveMlWind() {
+  return validationReplayInput?.checked ? validationSample : latestMlWind;
+}
 
 async function updateMlPrediction(timeSeconds) {
-  if (!params.useEstimatedWind || mlRequestInFlight || timeSeconds - lastMlRequestSeconds < 0.5) {
+  if (
+    !params.useEstimatedWind ||
+    validationReplayInput?.checked ||
+    mlRequestInFlight ||
+    timeSeconds - lastMlRequestSeconds < 0.5
+  ) {
     return;
   }
   mlRequestInFlight = true;
   lastMlRequestSeconds = timeSeconds;
   try {
+    const modelPosition = droneModelCoordinates();
     latestMlWind = await fetchMlWind({
       session_id: mlSessionId,
       elapsed_s: timeSeconds,
-      x: drone.position.x,
-      y: drone.position.z,
-      z: drone.position.y,
+      x: modelPosition.x,
+      y: modelPosition.y,
+      z: modelPosition.z,
       roll: THREE.MathUtils.degToRad(telemetry.rollDegrees),
       pitch: THREE.MathUtils.degToRad(telemetry.pitchDegrees),
       yaw: THREE.MathUtils.degToRad(telemetry.yawDegrees),
-      battery_v: 15.2,
-      battery_c: 4.0,
+      battery_v: Number(batteryVoltageInput?.value ?? 15.2),
+      battery_c: Number(batteryCurrentInput?.value ?? 4.0),
     });
+    lastMlError = null;
   } catch (error) {
     console.warn(error.message);
+    lastMlError = error.message;
     latestMlWind = null;
   } finally {
     mlRequestInFlight = false;
+  }
+}
+
+async function loadValidationMetrics() {
+  try {
+    validationMetrics = await fetchValidationMetrics();
+    validationMetricsError = null;
+  } catch (error) {
+    validationMetricsError = error.message;
+    console.warn(error.message);
+  }
+}
+
+async function loadValidationSample() {
+  const requestSequence = ++validationRequestSequence;
+  try {
+    const sample = await fetchValidationSample(Number(validationSampleInput.value));
+    if (requestSequence !== validationRequestSequence) return;
+    validationSample = sample;
+    validationSampleInput.max = String(validationSample.sample_count - 1);
+    validationSampleOutput.textContent =
+      `${validationSample.index + 1} / ${validationSample.sample_count}`;
+    validationSampleError = null;
+  } catch (error) {
+    validationSampleError = error.message;
+    console.warn(error.message);
   }
 }
 
@@ -1004,6 +1077,26 @@ connectSlider("#base-speed", "#base-output", "baseSpeed", " m/s");
 connectSlider("#turbulence", "#turbulence-output", "turbulence");
 connectSlider("#gradient", "#gradient-output", "gradient");
 
+function connectTelemetrySlider(input, output, suffix) {
+  const update = () => {
+    output.value = `${Number(input.value).toFixed(1)}${suffix}`;
+    output.textContent = output.value;
+  };
+  input.addEventListener("input", update);
+  update();
+}
+
+connectTelemetrySlider(
+  batteryVoltageInput,
+  document.querySelector("#battery-voltage-output"),
+  " V",
+);
+connectTelemetrySlider(
+  batteryCurrentInput,
+  document.querySelector("#battery-current-output"),
+  " A",
+);
+
 const animateWindInput = document.querySelector("#animate-wind");
 animateWindInput.addEventListener("change", () => {
   params.animateWind = animateWindInput.checked;
@@ -1019,6 +1112,14 @@ const useEstimatedWindInput =
 function updateEstimatedWindMode() {
   params.useEstimatedWind =
     useEstimatedWindInput.checked;
+
+  for (const input of document.querySelectorAll("[data-demo-wind-control]")) {
+    input.disabled = params.useEstimatedWind;
+  }
+
+  if (params.useEstimatedWind && !validationMetrics && !validationMetricsError) {
+    loadValidationMetrics();
+  }
 }
 
 useEstimatedWindInput.addEventListener(
@@ -1027,6 +1128,13 @@ useEstimatedWindInput.addEventListener(
 );
 
 updateEstimatedWindMode();
+
+validationReplayInput.addEventListener("change", () => {
+  validationSampleInput.disabled = !validationReplayInput.checked;
+  if (validationReplayInput.checked) loadValidationSample();
+});
+validationSampleInput.addEventListener("input", loadValidationSample);
+validationSampleInput.disabled = true;
 
 const windDirectionOutput =
   document.querySelector(
@@ -1180,13 +1288,15 @@ function animate() {
   telemetry.estimatedWindSpeed =
     smoothedEstimatedWind.length();
 
-  if (params.useEstimatedWind && latestMlWind) {
-    smoothedEstimatedWind.set(latestMlWind.u, latestMlWind.w, latestMlWind.v);
-    telemetry.estimatedWindX = latestMlWind.u;
-    telemetry.estimatedWindY = latestMlWind.w;
-    telemetry.estimatedWindZ = latestMlWind.v;
-    telemetry.estimatedWindSpeed = latestMlWind.speed;
-    telemetry.estimatedWindConfidence = 100;
+  const activeMlWind = getActiveMlWind();
+  if (params.useEstimatedWind && activeMlWind) {
+    smoothedEstimatedWind.set(activeMlWind.u, activeMlWind.w, activeMlWind.v);
+    telemetry.estimatedWindX = activeMlWind.u;
+    telemetry.estimatedWindY = activeMlWind.w;
+    telemetry.estimatedWindZ = activeMlWind.v;
+    telemetry.estimatedWindSpeed = activeMlWind.speed;
+    telemetry.estimatedWindConfidence =
+      (activeMlWind.direction_confidence ?? 0) * 100;
   }
 
   const referenceWind =
@@ -1206,24 +1316,13 @@ telemetry.referenceWindZ =
 telemetry.referenceWindSpeed =
   referenceWind.length();
 
-// Vector difference between the estimated
-// and reference wind.
-telemetry.windEstimateError =
-  smoothedEstimatedWind.distanceTo(
-    referenceWind
-  );
-
-if (
-  telemetry.referenceWindSpeed >
-  0.1
-) {
-  telemetry.windEstimateErrorPercent =
-    (
-      telemetry.windEstimateError /
-      telemetry.referenceWindSpeed
-    ) * 100;
-} else {
-  telemetry.windEstimateErrorPercent = 0;
+// The slider-driven reference is a demo signal, not measured ground truth.
+// Never report it as model accuracy in ML mode.
+if (!params.useEstimatedWind) {
+  telemetry.windEstimateError = smoothedEstimatedWind.distanceTo(referenceWind);
+  telemetry.windEstimateErrorPercent = telemetry.referenceWindSpeed > 0.1
+    ? (telemetry.windEstimateError / telemetry.referenceWindSpeed) * 100
+    : 0;
 }
 
   telemetry.estimatedWindConfidence = 
@@ -1232,8 +1331,9 @@ if (
       aerodynamicForce
     );
 
-  if (params.useEstimatedWind && latestMlWind) {
-    telemetry.estimatedWindConfidence = 100;
+  if (params.useEstimatedWind && activeMlWind) {
+    telemetry.estimatedWindConfidence =
+      (activeMlWind.direction_confidence ?? 0) * 100;
   }
 
   telemetry.aerodynamicForceX =
@@ -1298,18 +1398,41 @@ if (
   }
 
   if (windErrorValue) {
-    const safeErrorPercent =
-      Number.isFinite(
-        telemetry.windEstimateErrorPercent
-      )
-        ? telemetry.windEstimateErrorPercent
-        : 0;
+    if (params.useEstimatedWind) {
+      windErrorValue.textContent = validationReplayInput.checked && validationSample
+        ? `${validationSample.speed_error.toFixed(2)} m/s ` +
+          `(${validationSample.speed_error_percent?.toFixed(0) ?? "N/A"}%) — ` +
+          `predicted ${validationSample.predicted_speed.toFixed(2)}, ` +
+          `measured ${validationSample.measured_speed.toFixed(2)} m/s`
+        : validationMetrics
+        ? `${validationMetrics.speed_mae_mps.toFixed(2)} m/s MAE ` +
+          `(${validationMetrics.speed_mape_percent.toFixed(0)}% MAPE, ` +
+          `${validationMetrics.sample_count.toLocaleString()} measured test samples)`
+        : validationMetricsError
+          ? "Measured validation data unavailable"
+          : "Loading measured validation error…";
+    } else {
+      windErrorValue.textContent =
+        `${telemetry.windEstimateError.toFixed(2)} m/s ` +
+        `(${telemetry.windEstimateErrorPercent.toFixed(0)}%)`;
+    }
+  }
 
-    windErrorValue.textContent =
-      `${telemetry.windEstimateError.toFixed(
-        2
-      )} m/s ` +
-      `(${safeErrorPercent.toFixed(0)}%)`;
+  const mlStatus = document.querySelector("#ml-status");
+  if (mlStatus) {
+    mlStatus.textContent = !params.useEstimatedWind
+      ? "ML model is off. Demo wind controls are active."
+      : validationReplayInput.checked
+        ? validationSampleError
+          ? `Measured replay failed: ${validationSampleError}`
+          : validationSample
+            ? `Measured test replay active (flight ${validationSample.flight_id}). Arrows and error use the same recorded row.`
+            : "Loading measured test sample…"
+      : latestMlWind
+        ? "Live ML prediction active. Arrows show the predicted 2D ambient wind only."
+        : lastMlError
+          ? `ML prediction failed: ${lastMlError}`
+          : "Loading the trained model and waiting for the first prediction…";
   }
 
   centerMarker.material.opacity = 0.62 + Math.sin(timeSeconds * 2) * 0.22;
