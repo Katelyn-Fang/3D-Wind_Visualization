@@ -108,6 +108,9 @@ def predict(sample: Telemetry) -> dict[str, float]:
     latest = engineered[features].tail(1)
     speed = max(float(artifact["speed_model"].predict(latest)[0]), 0.0)
     direction_vector = artifact["direction_model"].predict(latest)
+    direction_confidence = float(
+        np.clip(np.linalg.norm(np.asarray(direction_vector), axis=1)[0], 0.0, 1.0)
+    )
     modeled_direction_deg = vectors_to_angle_deg(np.asarray(direction_vector))
     training_arguments = artifact.get("training_arguments", {})
     direction_target = training_arguments.get("direction_target", "absolute")
@@ -134,6 +137,7 @@ def predict(sample: Telemetry) -> dict[str, float]:
     return {
         "speed": speed,
         "direction_from_deg": direction_from_deg,
+        "direction_confidence": direction_confidence,
         "u": float(u),
         "v": float(v),
         "w": 0.0,

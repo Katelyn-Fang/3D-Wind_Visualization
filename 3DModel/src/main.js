@@ -396,6 +396,18 @@ scene.add(localWindMarker);
 const color = new THREE.Color();
 const direction = new THREE.Vector3();
 const samplePosition = new THREE.Vector3();
+const mlVisualWind = new THREE.Vector3();
+
+function getVisualizedWind(sample, timeSeconds) {
+  if (params.useEstimatedWind && latestMlWind) {
+    // The trained model estimates ambient 2D wind from drone telemetry.
+    // In ML mode, show that vector directly. Do not add rotor downwash,
+    // drone disturbance, synthetic gusts, shear, or demo gradients.
+    return mlVisualWind.set(latestMlWind.u, latestMlWind.w, latestMlWind.v);
+  }
+
+  return predictWind(sample, drone.position, timeSeconds, params, telemetry);
+}
 
 function speedColor(speed) {
   const normalized = THREE.MathUtils.clamp((speed - 0.5) / 7, 0, 1);
@@ -417,13 +429,7 @@ function updateWindField(timeSeconds) {
   for (const sample of arrowSamples) {
     samplePosition.copy(drone.position).add(sample.localOffset);
 
-    const wind = predictWind(
-      samplePosition, 
-      drone.position, 
-      timeSeconds,
-      params,
-      telemetry
-    );
+    const wind = getVisualizedWind(samplePosition, timeSeconds);
     const speed = wind.length();
 
     direction.copy(wind).normalize();
@@ -449,13 +455,7 @@ function updateWindField(timeSeconds) {
       estimatedWindOpacity;
   }
 
-  const localWind = predictWind(
-    drone.position, 
-    drone.position, 
-    timeSeconds,
-    params,
-    telemetry
-  );
+  const localWind = getVisualizedWind(drone.position, timeSeconds);
   const localSpeed = localWind.length();
 
   localWindMarker.position.copy(drone.position);
@@ -524,7 +524,10 @@ const referenceWindVector = new THREE.Vector3();
 let latestMlWind = null;
 let mlRequestInFlight = false;
 let lastMlRequestSeconds = -Infinity;
+let lastMlError = null;
 const mlSessionId = `vite-${Date.now()}`;
+const batteryVoltageInput = document.querySelector("#battery-voltage");
+const batteryCurrentInput = document.querySelector("#battery-current");
 
 async function updateMlPrediction(timeSeconds) {
   if (!params.useEstimatedWind || mlRequestInFlight || timeSeconds - lastMlRequestSeconds < 0.5) {
@@ -542,11 +545,13 @@ async function updateMlPrediction(timeSeconds) {
       roll: THREE.MathUtils.degToRad(telemetry.rollDegrees),
       pitch: THREE.MathUtils.degToRad(telemetry.pitchDegrees),
       yaw: THREE.MathUtils.degToRad(telemetry.yawDegrees),
-      battery_v: 15.2,
-      battery_c: 4.0,
+      battery_v: Number(batteryVoltageInput?.value ?? 15.2),
+      battery_c: Number(batteryCurrentInput?.value ?? 4.0),
     });
+    lastMlError = null;
   } catch (error) {
     console.warn(error.message);
+    lastMlError = error.message;
     latestMlWind = null;
   } finally {
     mlRequestInFlight = false;
@@ -1004,6 +1009,26 @@ connectSlider("#base-speed", "#base-output", "baseSpeed", " m/s");
 connectSlider("#turbulence", "#turbulence-output", "turbulence");
 connectSlider("#gradient", "#gradient-output", "gradient");
 
+function connectTelemetrySlider(input, output, suffix) {
+  const update = () => {
+    output.value = `${Number(input.value).toFixed(1)}${suffix}`;
+    output.textContent = output.value;
+  };
+  input.addEventListener("input", update);
+  update();
+}
+
+connectTelemetrySlider(
+  batteryVoltageInput,
+  document.querySelector("#battery-voltage-output"),
+  " V",
+);
+connectTelemetrySlider(
+  batteryCurrentInput,
+  document.querySelector("#battery-current-output"),
+  " A",
+);
+
 const animateWindInput = document.querySelector("#animate-wind");
 animateWindInput.addEventListener("change", () => {
   params.animateWind = animateWindInput.checked;
@@ -1019,6 +1044,10 @@ const useEstimatedWindInput =
 function updateEstimatedWindMode() {
   params.useEstimatedWind =
     useEstimatedWindInput.checked;
+
+  for (const input of document.querySelectorAll("[data-demo-wind-control]")) {
+    input.disabled = params.useEstimatedWind;
+  }
 }
 
 useEstimatedWindInput.addEventListener(
@@ -1186,7 +1215,8 @@ function animate() {
     telemetry.estimatedWindY = latestMlWind.w;
     telemetry.estimatedWindZ = latestMlWind.v;
     telemetry.estimatedWindSpeed = latestMlWind.speed;
-    telemetry.estimatedWindConfidence = 100;
+    telemetry.estimatedWindConfidence =
+      (latestMlWind.direction_confidence ?? 0) * 100;
   }
 
   const referenceWind =
@@ -1206,24 +1236,13 @@ telemetry.referenceWindZ =
 telemetry.referenceWindSpeed =
   referenceWind.length();
 
-// Vector difference between the estimated
-// and reference wind.
-telemetry.windEstimateError =
-  smoothedEstimatedWind.distanceTo(
-    referenceWind
-  );
-
-if (
-  telemetry.referenceWindSpeed >
-  0.1
-) {
-  telemetry.windEstimateErrorPercent =
-    (
-      telemetry.windEstimateError /
-      telemetry.referenceWindSpeed
-    ) * 100;
-} else {
-  telemetry.windEstimateErrorPercent = 0;
+// The slider-driven reference is a demo signal, not measured ground truth.
+// Never report it as model accuracy in ML mode.
+if (!params.useEstimatedWind) {
+  telemetry.windEstimateError = smoothedEstimatedWind.distanceTo(referenceWind);
+  telemetry.windEstimateErrorPercent = telemetry.referenceWindSpeed > 0.1
+    ? (telemetry.windEstimateError / telemetry.referenceWindSpeed) * 100
+    : 0;
 }
 
   telemetry.estimatedWindConfidence = 
@@ -1233,7 +1252,8 @@ if (
     );
 
   if (params.useEstimatedWind && latestMlWind) {
-    telemetry.estimatedWindConfidence = 100;
+    telemetry.estimatedWindConfidence =
+      (latestMlWind.direction_confidence ?? 0) * 100;
   }
 
   telemetry.aerodynamicForceX =
@@ -1298,18 +1318,26 @@ if (
   }
 
   if (windErrorValue) {
-    const safeErrorPercent =
-      Number.isFinite(
-        telemetry.windEstimateErrorPercent
-      )
-        ? telemetry.windEstimateErrorPercent
-        : 0;
+    if (params.useEstimatedWind) {
+      windErrorValue.textContent = latestMlWind
+        ? "N/A — measured reference required"
+        : "Waiting for ML prediction…";
+    } else {
+      windErrorValue.textContent =
+        `${telemetry.windEstimateError.toFixed(2)} m/s ` +
+        `(${telemetry.windEstimateErrorPercent.toFixed(0)}%)`;
+    }
+  }
 
-    windErrorValue.textContent =
-      `${telemetry.windEstimateError.toFixed(
-        2
-      )} m/s ` +
-      `(${safeErrorPercent.toFixed(0)}%)`;
+  const mlStatus = document.querySelector("#ml-status");
+  if (mlStatus) {
+    mlStatus.textContent = !params.useEstimatedWind
+      ? "ML model is off. Demo wind controls are active."
+      : latestMlWind
+        ? "ML prediction active. Arrows show the predicted 2D ambient wind only."
+        : lastMlError
+          ? `ML prediction failed: ${lastMlError}`
+          : "Loading the trained model and waiting for the first prediction…";
   }
 
   centerMarker.material.opacity = 0.62 + Math.sin(timeSeconds * 2) * 0.22;
