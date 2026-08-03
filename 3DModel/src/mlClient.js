@@ -14,3 +14,11 @@ export async function fetchMlWind(sample, signal) {
   return response.json();
 }
 
+export async function fetchValidationMetrics(signal) {
+  const response = await fetch(`${API_URL}/validation-metrics`, { signal });
+  if (!response.ok) {
+    const message = await response.text();
+    throw new Error(`Validation metrics ${response.status}: ${message}`);
+  }
+  return response.json();
+}

@@ -29,6 +29,9 @@ from src.wind_core import (  # noqa: E402
 MODEL_PATH = Path(
     os.environ.get("WIND_MODEL_PATH", str(Path.home() / "Downloads" / "wind_model.joblib"))
 ).expanduser()
+VALIDATION_PATH = Path(
+    os.environ.get("WIND_VALIDATION_PATH", str(PROJECT_ROOT / "test_predictions.csv"))
+).expanduser()
 
 app = FastAPI(title="Drone wind model API")
 app.add_middleware(
@@ -55,6 +58,7 @@ class Telemetry(BaseModel):
 _artifact: dict[str, Any] | None = None
 _load_lock = threading.Lock()
 _history: dict[str, list[dict[str, Any]]] = {}
+_validation_metrics: dict[str, float | int] | None = None
 
 
 def get_artifact() -> dict[str, Any]:
@@ -76,6 +80,38 @@ def health() -> dict[str, Any]:
         "model_loaded": _artifact is not None,
         "model_size_bytes": MODEL_PATH.stat().st_size if MODEL_PATH.is_file() else None,
     }
+
+
+@app.get("/validation-metrics")
+def validation_metrics() -> dict[str, float | int]:
+    """Return held-out errors against the measured anemometer wind speed."""
+    global _validation_metrics
+    if _validation_metrics is not None:
+        return _validation_metrics
+    if not VALIDATION_PATH.is_file():
+        raise HTTPException(
+            status_code=404,
+            detail=f"Validation predictions not found: {VALIDATION_PATH}",
+        )
+
+    frame = pd.read_csv(
+        VALIDATION_PATH,
+        usecols=["Wind_speed", "Predicted_wind_speed"],
+    ).dropna()
+    measured = frame["Wind_speed"].to_numpy(dtype=float)
+    predicted = frame["Predicted_wind_speed"].to_numpy(dtype=float)
+    absolute_error = np.abs(predicted - measured)
+    percent_mask = measured >= 0.5
+    _validation_metrics = {
+        "sample_count": int(len(frame)),
+        "measured_mean_mps": float(np.mean(measured)),
+        "speed_mae_mps": float(np.mean(absolute_error)),
+        "speed_rmse_mps": float(np.sqrt(np.mean((predicted - measured) ** 2))),
+        "speed_mape_percent": float(
+            np.mean(absolute_error[percent_mask] / measured[percent_mask]) * 100
+        ),
+    }
+    return _validation_metrics
 
 
 @app.post("/predict")

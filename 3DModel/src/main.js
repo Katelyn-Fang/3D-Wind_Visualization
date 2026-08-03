@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import {OrbitControls} from "three/addons/controls/OrbitControls.js";
 import "./style.css";
-import { fetchMlWind } from "./mlClient.js";
+import { fetchMlWind, fetchValidationMetrics } from "./mlClient.js";
 import {
   predictWind, 
   estimateAerodynamicForce,
@@ -525,6 +525,8 @@ let latestMlWind = null;
 let mlRequestInFlight = false;
 let lastMlRequestSeconds = -Infinity;
 let lastMlError = null;
+let validationMetrics = null;
+let validationMetricsError = null;
 const mlSessionId = `vite-${Date.now()}`;
 const batteryVoltageInput = document.querySelector("#battery-voltage");
 const batteryCurrentInput = document.querySelector("#battery-current");
@@ -555,6 +557,16 @@ async function updateMlPrediction(timeSeconds) {
     latestMlWind = null;
   } finally {
     mlRequestInFlight = false;
+  }
+}
+
+async function loadValidationMetrics() {
+  try {
+    validationMetrics = await fetchValidationMetrics();
+    validationMetricsError = null;
+  } catch (error) {
+    validationMetricsError = error.message;
+    console.warn(error.message);
   }
 }
 
@@ -1048,6 +1060,10 @@ function updateEstimatedWindMode() {
   for (const input of document.querySelectorAll("[data-demo-wind-control]")) {
     input.disabled = params.useEstimatedWind;
   }
+
+  if (params.useEstimatedWind && !validationMetrics && !validationMetricsError) {
+    loadValidationMetrics();
+  }
 }
 
 useEstimatedWindInput.addEventListener(
@@ -1319,9 +1335,13 @@ if (!params.useEstimatedWind) {
 
   if (windErrorValue) {
     if (params.useEstimatedWind) {
-      windErrorValue.textContent = latestMlWind
-        ? "N/A — measured reference required"
-        : "Waiting for ML prediction…";
+      windErrorValue.textContent = validationMetrics
+        ? `${validationMetrics.speed_mae_mps.toFixed(2)} m/s MAE ` +
+          `(${validationMetrics.speed_mape_percent.toFixed(0)}% MAPE, ` +
+          `${validationMetrics.sample_count.toLocaleString()} measured test samples)`
+        : validationMetricsError
+          ? "Measured validation data unavailable"
+          : "Loading measured validation error…";
     } else {
       windErrorValue.textContent =
         `${telemetry.windEstimateError.toFixed(2)} m/s ` +
