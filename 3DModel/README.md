@@ -51,7 +51,7 @@ The Python model stays outside the browser because `wind_model.joblib` is 5.2 GB
 Start the prediction service in a second terminal:
 
 ```bash
-python3 -m venv .venv
+python3.11 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements-ml.txt
 WIND_MODEL_PATH="$HOME/Downloads/wind_model.joblib" uvicorn ml_server:app --reload

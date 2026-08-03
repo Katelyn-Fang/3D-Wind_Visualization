@@ -16,7 +16,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
+MODEL_PIPELINE_ROOT = PROJECT_ROOT / "wind_ml_pipeline_12_models"
 sys.path.insert(0, str(PROJECT_ROOT))
+sys.path.insert(0, str(MODEL_PIPELINE_ROOT))
 from train_wind_model_v2_1 import add_engineered_features, vectors_to_angle_deg  # noqa: E402
 
 MODEL_PATH = Path(
