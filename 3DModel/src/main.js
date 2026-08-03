@@ -542,6 +542,25 @@ const validationReplayInput = document.querySelector("#validation-replay");
 const validationSampleInput = document.querySelector("#validation-sample");
 const validationSampleOutput = document.querySelector("#validation-sample-output");
 
+// The model was trained with GPS longitude, latitude, and altitude rather than
+// Three.js scene coordinates. Anchor the local simulator near a recorded-flight
+// origin and convert its east/north offsets from metres into GPS degrees.
+const modelCoordinateOrigin = {
+  longitude: -79.7826006916051,
+  latitude: 40.45836389714015,
+  altitudeM: 267.1844462604522,
+};
+
+function droneModelCoordinates() {
+  const latitudeRadians = THREE.MathUtils.degToRad(modelCoordinateOrigin.latitude);
+  return {
+    x: modelCoordinateOrigin.longitude +
+      drone.position.x / (111_320 * Math.cos(latitudeRadians)),
+    y: modelCoordinateOrigin.latitude + drone.position.z / 111_320,
+    z: modelCoordinateOrigin.altitudeM + drone.position.y,
+  };
+}
+
 function getActiveMlWind() {
   return validationReplayInput?.checked ? validationSample : latestMlWind;
 }
@@ -558,12 +577,13 @@ async function updateMlPrediction(timeSeconds) {
   mlRequestInFlight = true;
   lastMlRequestSeconds = timeSeconds;
   try {
+    const modelPosition = droneModelCoordinates();
     latestMlWind = await fetchMlWind({
       session_id: mlSessionId,
       elapsed_s: timeSeconds,
-      x: drone.position.x,
-      y: drone.position.z,
-      z: drone.position.y,
+      x: modelPosition.x,
+      y: modelPosition.y,
+      z: modelPosition.z,
       roll: THREE.MathUtils.degToRad(telemetry.rollDegrees),
       pitch: THREE.MathUtils.degToRad(telemetry.pitchDegrees),
       yaw: THREE.MathUtils.degToRad(telemetry.yawDegrees),
