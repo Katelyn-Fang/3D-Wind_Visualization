@@ -95,6 +95,7 @@ const physicsModelInput = document.querySelector("#physics-model");
 const modelStatus = document.querySelector("#model-status");
 const validationError = document.querySelector("#validation-error");
 const validationDetails = document.querySelector("#validation-details");
+let modelBeforeNumericMode = physicsModelInput.value;
 let droneHeight = telemetry.altitude;
 const DRAG_LIMIT = 9.5;
 
@@ -561,6 +562,7 @@ function updatePhysicsEstimate(deltaTime) {
 }
 
 physicsModelInput.addEventListener("change", () => {
+  modelBeforeNumericMode = physicsModelInput.value;
   cancelNumericMotion("Physics model changed. Numeric result cleared.");
 });
 
@@ -812,8 +814,20 @@ function updateInputMode() {
   const numericMode = numericModeInput.checked;
   dragging = false;
   orbitControls.enabled = true;
+
+  if (numericMode) {
+    modelBeforeNumericMode = physicsModelInput.value;
+    physicsModelInput.value = "inverse";
+    physicsModelInput.disabled = true;
+  } else {
+    physicsModelInput.disabled = false;
+    physicsModelInput.value = modelBeforeNumericMode;
+  }
+
   cancelNumericMotion(
-    numericMode ? "Ready for numeric input." : "Numeric result cleared.",
+    numericMode
+      ? "Ready for numeric input. Inverse-drag model selected automatically."
+      : "Numeric result cleared.",
   );
   numericControls.hidden = !numericMode;
   manualControls.hidden = numericMode;

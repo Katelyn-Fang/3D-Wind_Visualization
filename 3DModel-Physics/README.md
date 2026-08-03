@@ -76,7 +76,9 @@ Open the URL printed by Vite, then drag the drone across the grid.
 Enable **Use numeric motion inputs** to replace mouse dragging with a scripted
 relative movement. Enter `x`, `y`, and `z` offsets in inches, attitude offsets
 in degrees, and a duration in seconds. The simulator animates a minimum-jerk
-trajectory from the current pose to the requested pose.
+trajectory from the current pose to the requested pose. Numeric mode selects
+the inverse-drag model automatically because the identified baseline estimates
+measured ambient wind and is not an inverse solution for arbitrary offsets.
 
 Because the trajectory supplies analytic velocity and acceleration, the
 inverse model responds predictably to the inputs: doubling the distance doubles
