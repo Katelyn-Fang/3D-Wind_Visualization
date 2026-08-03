@@ -57,11 +57,13 @@ grid.material.opacity = 0.43;
 grid.material.transparent = true;
 scene.add(grid);
 
+const ORIGIN_ALTITUDE = 1.35;
+
 const telemetry = {
   yawDegrees: 0,
   pitchDegrees: 0,
   rollDegrees: 0,
-  altitude: 1.35,
+  altitude: ORIGIN_ALTITUDE,
   velocityX: 0,
   velocityY: 0,
   velocityZ: 0,
@@ -759,43 +761,37 @@ runNumericButton.addEventListener("click", startNumericMotion);
 cancelNumericButton.addEventListener("click", () => cancelNumericMotion());
 updateInputMode();
 
-document.querySelector("#reset-button").addEventListener("click", () => {
-  cancelNumericMotion("Simulation reset.");
-  for (const [id, value] of [
-    ["#altitude", "1.35"],
-    ["#yaw", "0"],
-    ["#pitch", "0"],
-    ["#roll", "0"],
+function resetDroneToOrigin() {
+  cancelNumericMotion(
+    "Drone reset to the origin at 1.35 m with a level attitude.",
+  );
+
+  droneHeight = ORIGIN_ALTITUDE;
+  drone.position.set(0, ORIGIN_ALTITUDE, 0);
+  telemetry.altitude = ORIGIN_ALTITUDE;
+  dragPlane.constant = -ORIGIN_ALTITUDE;
+  applyDroneAttitude(0, 0, 0);
+  resetKinematics();
+
+  altitudeInput.value = String(ORIGIN_ALTITUDE);
+  altitudeOutput.textContent = `${ORIGIN_ALTITUDE.toFixed(2)} m`;
+  for (const [inputId, outputId] of [
+    ["#yaw", "#yaw-output"],
+    ["#pitch", "#pitch-output"],
+    ["#roll", "#roll-output"],
   ]) {
-    const input = document.querySelector(id);
-    input.value = value;
-    input.dispatchEvent(new Event("input"));
+    document.querySelector(inputId).value = "0";
+    document.querySelector(outputId).textContent = "0°";
   }
 
-  for (const [input, value] of [
-    [numericInputs.x, "24"],
-    [numericInputs.y, "0"],
-    [numericInputs.z, "0"],
-    [numericInputs.roll, "0"],
-    [numericInputs.pitch, "0"],
-    [numericInputs.yaw, "0"],
-    [numericInputs.duration, "2"],
-  ]) {
-    input.value = value;
-  }
-
-  drone.position.set(0, droneHeight, 0);
-  previousDronePosition.copy(drone.position);
-  measuredVelocity.set(0, 0, 0);
-  smoothedVelocity.set(0, 0, 0);
-  previousVelocity.set(0, 0, 0);
-  measuredAcceleration.set(0, 0, 0);
-  smoothedAcceleration.set(0, 0, 0);
-  smoothedWind.set(0, 0, 0);
   camera.position.set(12, 11, 15);
   orbitControls.target.set(0, 1.2, 0);
   orbitControls.update();
-});
+}
+
+document
+  .querySelector("#reset-button")
+  .addEventListener("click", resetDroneToOrigin);
 
 const readouts = {
   x: document.querySelector("#x-value"),
