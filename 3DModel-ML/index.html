@@ -1,0 +1,355 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="Extra Trees drone wind-vector simulation with drag and numeric motion inputs."
+    />
+    <title>Extra Trees Drone Wind Simulator</title>
+  </head>
+  <body>
+    <main id="app">
+      <canvas id="scene" aria-label="Interactive 3D drone wind simulation"></canvas>
+
+      <section class="panel" aria-label="Simulation controls">
+        <div class="panel-heading">
+          <div>
+            <p class="eyebrow">Extra Trees ML estimator</p>
+            <h1>Machine-learning wind field</h1>
+          </div>
+          <button
+            id="reset-button"
+            type="button"
+            aria-label="Reset drone to the simulation origin with a level attitude"
+          >
+            Reset to origin
+          </button>
+        </div>
+
+        <p class="instructions">
+          Drag the drone as before, or enable numeric motion to animate exact
+          position, attitude, and duration inputs through inverse physics or
+          the Extra Trees model.
+        </p>
+
+        <div class="metrics" aria-live="polite">
+          <div>
+            <span>East x</span>
+            <strong id="x-value">0.00 m</strong>
+          </div>
+          <div>
+            <span>North z</span>
+            <strong id="z-value">0.00 m</strong>
+          </div>
+          <div>
+            <span>Center offset</span>
+            <strong id="offset-value">0.00 m</strong>
+          </div>
+          <div>
+            <span>Wind speed</span>
+            <strong id="speed-value">0.00 m/s</strong>
+          </div>
+          <div>
+            <span>Input mode</span>
+            <strong id="mode-value">Drag</strong>
+          </div>
+        </div>
+        <p>
+          Drone speed:
+          <strong id="drone-speed-value">
+            0.00 m/s
+          </strong>
+        </p>
+
+        <p>
+          Drone acceleration:
+          <strong id="drone-acceleration-value">
+            0.00 m/s²
+          </strong>
+        </p>
+
+        <p>
+          Direction-vector strength:
+          <strong id="wind-confidence-value">0%</strong>
+        </p>
+
+        <div class="confidence-track">
+          <div id="wind-confidence-bar"></div>
+        </div>
+
+        <div class="components">
+          <span id="u-value">u: 0.00</span>
+          <span id="v-value">v: 0.00</span>
+          <span id="w-value">w: 0.00</span>
+        </div>
+
+        <label>
+          <span>Base wind speed <output id="base-output">2.5 m/s</output></span>
+          <input id="base-speed" data-demo-wind-control type="range" min="0.5" max="6" step="0.1" value="2.5" />
+        </label>
+
+        <p>
+          Estimated aerodynamic force:
+          <strong id="aerodynamic-force-value">
+            0.00 N
+          </strong>
+        </p>
+
+        <p>
+          <span id="prediction-label">Estimated wind</span>:
+          <strong id="estimated-wind-value">
+            0.00 m/s
+          </strong>
+        </p>
+
+        <p>
+          Estimated components:
+          <span id="estimated-wind-components">
+            u: 0.00, v: 0.00, w: 0.00 m/s
+          </span>
+        </p>
+
+        <p>
+          Force components:
+          <span id="aerodynamic-force-components">
+            Fx: 0.00, Fy: 0.00, Fz: 0.00 N
+          </span>
+        </p>
+
+        <label>
+          <span>
+            Ambient wind direction
+            <output id="wind-direction-output">0°</output>
+          </span>
+
+          <input
+            id="wind-direction"
+            data-demo-wind-control
+            type="range"
+            min="0"
+            max="359"
+            step="1"
+            value="0"
+          />
+        </label>
+
+        <label>
+          <span>Drone disturbance <output id="turbulence-output">1.2</output></span>
+          <input id="turbulence" data-demo-wind-control type="range" min="0" max="3" step="0.1" value="1.2" />
+        </label>
+
+        <label>
+          <span>Horizontal wind gradient <output id="gradient-output">0.18</output></span>
+          <input id="gradient" data-demo-wind-control type="range" min="0" max="0.5" step="0.01" value="0.18" />
+        </label>
+
+        <fieldset id="manual-motion-controls">
+        <label>
+          <span>
+            Drone altitude
+            <output id="altitude-output">1.35 m</output>
+          </span>
+
+          <input
+            id="altitude"
+            type="range"
+            min="0.5"
+            max="6"
+            step="0.05"
+            value="1.35"
+          />
+        </label>
+        
+        <label>
+          <span>
+            Drone heading
+            <output id="yaw-output">0°</output>
+          </span>
+
+          <input
+            id="yaw"
+            type="range"
+            min="-180"
+            max="180"
+            step="1"
+            value="0"
+          />
+        </label>
+
+        <label>
+          <span>
+            Drone pitch
+            <output id="pitch-output">0°</output>
+          </span>
+
+        <input
+          id="pitch"
+          type="range"
+          min="-30"
+          max="30"
+          step="1"
+          value="0"
+        />
+      </label>
+
+      <label>
+        <span>
+          Drone roll
+          <output id="roll-output">0°</output>
+        </span>
+
+        <input
+          id="roll"
+          type="range"
+          min="-30"
+          max="30"
+          step="1"
+          value="0"
+        />
+      </label>
+
+      </fieldset>
+
+      <label>
+        <span>Battery voltage <output id="battery-voltage-output">15.2 V</output></span>
+        <input id="battery-voltage" type="range" min="10" max="17" step="0.1" value="15.2" />
+      </label>
+
+      <label>
+        <span>Battery current <output id="battery-current-output">4.0 A</output></span>
+        <input id="battery-current" type="range" min="0" max="30" step="0.1" value="4" />
+      </label>
+
+        <label class="checkbox-row mode-toggle">
+          <input id="numeric-input-mode" type="checkbox" />
+          <span>Use numeric motion inputs</span>
+        </label>
+
+        <section id="numeric-motion-controls" class="numeric-controls" hidden>
+          <p class="instructions">
+            Values are offsets from the drone's current pose. Position uses
+            inches, rotation uses degrees, and duration uses seconds. Select
+            either physics or Extra Trees below. Physics uses the same inverse
+            model as 3DModel-Physics; Extra Trees prepares synchronized
+            predictions before the animation begins. Extra Trees reports its
+            learned ambient-wind direction, which is not forced to point along
+            the drone path; choose physics to reconstruct a causal pushing wind.
+          </p>
+
+          <div class="numeric-grid">
+            <label>
+              <span>X offset (in)</span>
+              <input id="numeric-x" type="number" step="0.1" value="24" />
+            </label>
+            <label>
+              <span>Y offset (in)</span>
+              <input id="numeric-y" type="number" step="0.1" value="0" />
+            </label>
+            <label>
+              <span>Z offset (in)</span>
+              <input id="numeric-z" type="number" step="0.1" value="0" />
+            </label>
+            <label>
+              <span>Roll offset (&deg;)</span>
+              <input id="numeric-roll" type="number" step="0.1" value="0" />
+            </label>
+            <label>
+              <span>Pitch offset (&deg;)</span>
+              <input id="numeric-pitch" type="number" step="0.1" value="0" />
+            </label>
+            <label>
+              <span>Yaw offset (&deg;)</span>
+              <input id="numeric-yaw" type="number" step="0.1" value="0" />
+            </label>
+            <label class="duration-input">
+              <span>Travel time (s)</span>
+              <input
+                id="numeric-duration"
+                type="number"
+                min="0.1"
+                max="60"
+                step="0.1"
+                value="2"
+              />
+            </label>
+          </div>
+
+          <div class="numeric-actions">
+            <button id="run-numeric-motion" type="button">Animate motion</button>
+            <button id="cancel-numeric-motion" type="button">Clear result</button>
+          </div>
+
+          <progress id="numeric-progress" max="1" value="0"></progress>
+          <p id="numeric-status" class="numeric-status" role="status">
+            Ready for numeric input.
+          </p>
+        </section>
+
+        <label class="checkbox-row">
+          <input id="animate-wind" data-demo-wind-control type="checkbox" checked />
+          <span>Animate small gust changes</span>
+        </label>
+
+        <label class="checkbox-row">
+          <input
+            id="use-physics-baseline"
+            type="checkbox"
+          />
+          <span>Use physics model (inverse during numeric motion)</span>
+        </label>
+
+        <label class="checkbox-row">
+          <input
+            id="use-estimated-wind"
+            type="checkbox"
+          />
+          <span>Use Extra Trees ML wind model</span>
+        </label>
+
+        <label class="checkbox-row">
+          <input id="validation-replay" type="checkbox" />
+          <span>Replay measured test samples</span>
+        </label>
+
+        <label>
+          <span>Measured test sample <output id="validation-sample-output">1</output></span>
+          <input id="validation-sample" type="range" min="0" max="54547" step="1" value="0" />
+        </label>
+
+        <p>
+          <span id="reference-wind-label">Demo reference wind</span>:
+          <strong id="reference-wind-value">
+            0.00 m/s
+          </strong>
+        </p>
+
+        <p>
+          Independent held-out comparison:
+          <strong id="wind-error-value">
+            0.00 m/s
+          </strong>
+        </p>
+
+        <p class="note" id="ml-status">
+          Extra Trees model is off. Demo wind controls are active.
+        </p>
+
+        <div class="comparison-key" aria-label="Measured replay arrow colors">
+          <span><i class="key-swatch measured"></i>Measured</span>
+          <span><i class="key-swatch physics"></i>Physics</span>
+          <span><i class="key-swatch ml"></i>ML</span>
+        </div>
+      </section>
+
+      <div class="legend" aria-label="Wind vector legend">
+        <span>Slower</span>
+        <div class="legend-gradient"></div>
+        <span>Faster</span>
+      </div>
+    </main>
+
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
