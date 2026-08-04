@@ -198,7 +198,7 @@ def load_predictions(
 
     rows = [
         {
-            "Model": "Measured (reference)",
+            "Model": "Measured",
             "Speed MAE (m/s)": 0.0,
             "Direction MAE (deg)": 0.0,
             "Angular offset (deg)": 0.0,
@@ -235,8 +235,18 @@ def save_table(metrics: pd.DataFrame, dataset: str, output: Path) -> None:
     ):
         display[column] = display[column].map(lambda value: f"{value:.2f}")
     display["Compared rows"] = display["Compared rows"].map(lambda value: f"{value:,}")
+    display = display.rename(
+        columns={
+            "Speed MAE (m/s)": "Speed MAE\n(m/s)",
+            "Direction MAE (deg)": "Direction MAE\n(degrees)",
+            "Angular offset (deg)": "Angular offset\n(degrees)",
+            "Within 15 deg (%)": "Within 15°\n(%)",
+            "Compared rows": "Samples",
+        }
+    )
 
-    figure, axis = plt.subplots(figsize=(11.5, 2.5))
+    figure, axis = plt.subplots(figsize=(12.5, 2.7), facecolor="white")
+    axis.set_facecolor("white")
     axis.axis("off")
     axis.set_title(
         f"{dataset}: measured wind compared with Extra Trees and physics",
@@ -247,20 +257,19 @@ def save_table(metrics: pd.DataFrame, dataset: str, output: Path) -> None:
     table = axis.table(
         cellText=display.values,
         colLabels=display.columns,
+        colWidths=[0.18, 0.15, 0.18, 0.18, 0.15, 0.13],
         cellLoc="center",
         loc="center",
     )
     table.auto_set_font_size(False)
-    table.set_fontsize(10)
-    table.scale(1.0, 1.65)
+    table.set_fontsize(9.5)
+    table.scale(1.0, 1.8)
     for (row, _column), cell in table.get_celld().items():
+        cell.set_facecolor("white")
+        cell.set_edgecolor("#777777")
+        cell.set_linewidth(0.8)
         if row == 0:
-            cell.set_facecolor("#2f6497")
-            cell.set_text_props(color="white", weight="bold")
-        elif row == 1:
-            cell.set_facecolor("#e8f4ea")
-        elif row % 2 == 0:
-            cell.set_facecolor("#f2f5f8")
+            cell.set_text_props(color="black", weight="bold")
 
     figure.text(
         0.5,
