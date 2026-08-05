@@ -2027,6 +2027,11 @@ telemetry.referenceWindSpeed =
                     validationSample.measured_speed * 100).toFixed(0)}% physics speed error`} — ` +
             `physics ${validationSample.physics_speed.toFixed(2)}, measured ${validationSample.measured_speed.toFixed(2)} m/s`
           : `${validationSample.speed_error.toFixed(2)} m/s speed error — ` +
+            `${validationSample.measured_speed < 0.1
+              ? "ML speed error N/A"
+              : `${(validationSample.speed_error_percent ??
+                  validationSample.speed_error / validationSample.measured_speed * 100
+                ).toFixed(0)}% ML speed error`} — ` +
             `ML ${validationSample.predicted_speed.toFixed(2)}, measured ${validationSample.measured_speed.toFixed(2)} m/s`
         : validationMetrics
         ? `Physics ${validationMetrics.physics.vector_mae_mps.toFixed(2)} vs ` +
