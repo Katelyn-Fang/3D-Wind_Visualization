@@ -61,6 +61,10 @@ class Telemetry(BaseModel):
     battery_c: float = 4.0
 
 
+class TrajectoryRequest(BaseModel):
+    samples: list[Telemetry]
+
+
 _artifact: dict[str, Any] | None = None
 _load_lock = threading.Lock()
 _history: dict[str, list[dict[str, Any]]] = {}
@@ -300,3 +304,30 @@ def predict(sample: Telemetry) -> dict[str, float]:
         "v": float(v),
         "w": 0.0,
     }
+
+
+@app.post("/predict-trajectory")
+def predict_trajectory(request: TrajectoryRequest) -> list[dict[str, float]]:
+    """Predict a complete numerical-motion path with one shared history."""
+    samples = request.samples
+    if not samples:
+        raise HTTPException(status_code=400, detail="Trajectory must contain samples")
+    if len(samples) > 121:
+        raise HTTPException(status_code=400, detail="Trajectory is limited to 121 samples")
+
+    session_ids = {sample.session_id for sample in samples}
+    if len(session_ids) != 1:
+        raise HTTPException(
+            status_code=400,
+            detail="All trajectory samples must use the same session_id",
+        )
+    elapsed = [sample.elapsed_s for sample in samples]
+    if any(right < left for left, right in zip(elapsed, elapsed[1:])):
+        raise HTTPException(
+            status_code=400,
+            detail="Trajectory samples must be ordered by elapsed_s",
+        )
+
+    session_id = samples[0].session_id
+    _history.pop(session_id, None)
+    return [predict(sample) for sample in samples]
